@@ -31,6 +31,11 @@ developer working on macOS, so they are cheap to re-break:
      compile cleanly in every translation unit and only fail at link,
      twenty minutes in.
 
+  5. Backup rules lint rejects. An <exclude> whose path lies outside every
+     <include> in its section is dead configuration, and lintVitalRelease
+     treats it as a fatal error rather than a warning, so it fails the
+     release build and nothing else.
+
 Run from the repository root; exits non-zero on the first category that
 fails, printing every instance.
 """
@@ -556,6 +561,65 @@ def check_port_symbols() -> list[str]:
     ]
 
 
+BACKUP_RULES = [
+    "ports/android/launcher/app/src/main/res/xml/data_extraction_rules.xml",
+    "ports/android/launcher/app/src/main/res/xml/backup_rules.xml",
+]
+
+
+def check_backup_rules() -> list[str]:
+    """Reimplements lint's FullBackupContent rule.
+
+    An <include> narrows its section to the paths it names, so an <exclude>
+    only means something when it sits under one of them. Lint reports the
+    rest as fatal during lintVitalRelease, which is the one lint run that
+    blocks a release build.
+    """
+    import xml.etree.ElementTree as ElementTree
+
+    problems: list[str] = []
+    for path in BACKUP_RULES:
+        if not os.path.exists(path):
+            continue
+        try:
+            root = ElementTree.parse(path).getroot()
+        except ElementTree.ParseError as error:
+            problems.append(f"{path}: not well-formed XML ({error})")
+            continue
+
+        # <full-backup-content> holds the rules directly; the Android 12
+        # <data-extraction-rules> groups them per transfer mode.
+        sections = [root] if root.tag == "full-backup-content" else list(root)
+        for section in sections:
+            includes = [
+                (element.get("domain"), element.get("path", "."))
+                for element in section.findall("include")
+            ]
+            for element in section.findall("exclude"):
+                domain = element.get("domain")
+                excluded = element.get("path", ".")
+                covered = any(
+                    domain == include_domain
+                    and (include_path == "." or excluded.startswith(include_path))
+                    for include_domain, include_path in includes
+                )
+                if includes and not covered:
+                    problems.append(
+                        f"{path}: <exclude domain=\"{domain}\" path=\"{excluded}\"> in "
+                        f"<{section.tag}> is outside every <include>; lint fails the "
+                        f"release build on this"
+                    )
+                elif any(
+                    domain == include_domain and excluded == include_path
+                    for include_domain, include_path in includes
+                ):
+                    problems.append(
+                        f"{path}: <exclude domain=\"{domain}\" path=\"{excluded}\"> in "
+                        f"<{section.tag}> contradicts an identical <include>"
+                    )
+    return problems
+
+
 def main() -> int:
     failed = False
 
@@ -590,6 +654,7 @@ def main() -> int:
         ("Block-scope extern declarations", check_block_scope_externs),
         ("Backend interface drift", check_backend_interfaces),
         ("Undefined port symbols", check_port_symbols),
+        ("Backup rules", check_backup_rules),
     ):
         problems = check()
         if problems:

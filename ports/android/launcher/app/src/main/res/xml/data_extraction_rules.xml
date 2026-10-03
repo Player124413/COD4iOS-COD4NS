@@ -2,15 +2,24 @@
 <!-- The imported game data is tens of gigabytes of files the player already
      owns on another machine. Backing it up or transferring it to a new device
      would be slow, expensive and pointless, so only the small settings file
-     is included. -->
+     travels.
+
+     Listing an <include> is what achieves that. An include narrows each
+     section to exactly the paths named, so everything else - filesDir/cod4,
+     external storage, the shader cache - is already out. Adding <exclude>
+     elements for those would not reinforce it: lint rejects an exclude whose
+     path sits outside every include, because it can only ever be dead
+     configuration.
+
+     android:allowBackup="false" in the manifest independently rules out cloud
+     backup; the <cloud-backup> section stays so the rule still holds if that
+     attribute is ever turned back on. -->
 <data-extraction-rules>
     <cloud-backup>
+        <!-- Context.getSharedPreferences("kisakcod", ...) in Settings.kt. -->
         <include domain="sharedpref" path="kisakcod.xml" />
-        <exclude domain="file" path="cod4" />
-        <exclude domain="external" path="." />
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="kisakcod.xml" />
-        <exclude domain="file" path="cod4" />
     </device-transfer>
 </data-extraction-rules>
