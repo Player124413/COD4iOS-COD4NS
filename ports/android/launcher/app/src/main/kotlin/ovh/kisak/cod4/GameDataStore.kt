@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * content:// URI is not a path, and the engine's file layer wants paths.
  *
  * What the engine actually needs:
- *   main/*.iwd        the base game archives
- *   zone/<lang>/*.ff  the fastfiles for one language
+ *   main/             the base game archives, .iwd
+ *   zone/<lang>/      the fastfiles for one language, .ff
  *   localization.txt  names that language
  * Everything else in a retail install (binaries, Bink movies, the launcher)
  * is ignored.

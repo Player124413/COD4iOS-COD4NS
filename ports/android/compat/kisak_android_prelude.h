@@ -66,7 +66,10 @@ typedef FILE _iobuf;
 #define _stricmp strcasecmp
 #define _strnicmp strncasecmp
 #define _strdup strdup
-typedef int64_t __time64_t;
+// Must match what q_shared.h makes __int64 - "long long" - because the
+// decompiled sources declare their clock variables with that and pass
+// their address here. On LP64 Linux int64_t is "long", a distinct type.
+typedef long long __time64_t;
 typedef POINT tagPOINT;
 typedef RECT tagRECT;
 typedef LARGE_INTEGER _LARGE_INTEGER;

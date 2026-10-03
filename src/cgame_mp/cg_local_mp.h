@@ -1149,7 +1149,7 @@ struct TestEffect // sizeof=0x54
     int32_t respawnTime;
 };
 
-void __cdecl CL_SyncGpu(int(__cdecl *WorkCallback)(uint64_t));
+void __cdecl CL_SyncGpu(int(__cdecl *WorkCallback)(unsigned __int64));
 
 void __cdecl TRACK_cg_view();
 void __cdecl CG_FxSetTestPosition();

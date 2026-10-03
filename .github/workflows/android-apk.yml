@@ -84,6 +84,14 @@ jobs:
       - name: Check version pins
         run: bash tools/check-android-pins.sh
 
+      # Two failure modes a developer on macOS cannot see locally: includes
+      # that only resolve on a case-insensitive filesystem, and Kotlin block
+      # comments left unbalanced by a nested "/*". Both otherwise surface
+      # deep inside the native build or as a cascade of unresolved
+      # references pointing at the wrong file.
+      - name: Check source portability
+        run: python3 tools/check-android-sources.py
+
       - name: Install build tools
         run: |
           sudo apt-get update

@@ -1274,7 +1274,7 @@ void __cdecl CG_UpdateKillCamEntityViewOffset(int32_t localClientNum)
     cgameGlob->refdef.viewOffset[2] = cent->pose.origin[2];
 }
 
-void __cdecl CL_SyncGpu(int(__cdecl *WorkCallback)(uint64_t))
+void __cdecl CL_SyncGpu(int(__cdecl *WorkCallback)(unsigned __int64))
 {
     R_SyncGpu(WorkCallback);
 }
