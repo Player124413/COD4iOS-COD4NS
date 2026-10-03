@@ -9,8 +9,9 @@
 #
 # which drives the same CMakeLists.txt through the Android Gradle plugin.
 #
-# Requires an NDK (r26 or later; r27 is what the Gradle build pins) and
-# shaderc built inside it - see docs/ANDROID.md.
+# Requires an NDK (r26 or later; r27 is what the Gradle build pins), shaderc
+# built inside it, and CMake 3.26 or newer - third-party/openal-soft links
+# through a generator expression older CMake does not know. See docs/ANDROID.md.
 
 set -euo pipefail
 

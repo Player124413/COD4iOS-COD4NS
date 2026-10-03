@@ -47,9 +47,19 @@ compare "NDK" \
     "$(extract "$gradle_app" 'ndkVersion = "([^"]+)"')" \
     "$(extract "$workflow" 'NDK_VERSION: "([^"]+)"')"
 
+sdk_cmake_gradle="$(extract "$gradle_app" 'sdkCmakeVersion.*\?: "([0-9][0-9.]*)"')"
 compare "SDK CMake" \
-    "$(extract "$gradle_app" 'sdkCmakeVersion.*\?: "([0-9][0-9.]*)"')" \
+    "$sdk_cmake_gradle" \
     "$(extract "$workflow" 'SDK_CMAKE_VERSION: "([^"]+)"')"
+
+# third-party/openal-soft links through $<BUILD_LOCAL_INTERFACE:...>, added in
+# CMake 3.26. AGP's default is 3.22.1, so this is easy to regress by deleting
+# the pin and never noticing until generate time.
+if [ -n "$sdk_cmake_gradle" ] &&
+   [ "$(printf '3.26\n%s\n' "$sdk_cmake_gradle" | sort -V | head -1)" != "3.26" ]; then
+    printf '  %-18s %s is below the 3.26 OpenAL Soft needs\n' "SDK CMake floor" "$sdk_cmake_gradle"
+    status=1
+fi
 
 compare "compileSdk" \
     "$(extract "$gradle_app" 'compileSdk = ([0-9]+)')" \

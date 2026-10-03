@@ -17,9 +17,10 @@ val buildMultiplayer: Boolean = (findProperty("kisak.mp") as String? ?: "true").
 val useCcache: Boolean =
     (findProperty("kisak.ccache") as String? ?: System.getenv("KISAK_CCACHE") ?: "false").toBoolean()
 
-// The CMake the SDK provides. Overridable because the pinned one occasionally
-// has to move ahead of an NDK; the CI workflow installs this exact version.
-val sdkCmakeVersion: String = (findProperty("kisak.cmake") as String?) ?: "3.22.1"
+// The CMake the SDK provides. 3.22.1 - the version AGP defaults to - cannot
+// build this tree: OpenAL Soft uses $<BUILD_LOCAL_INTERFACE:...>, which CMake
+// added in 3.26. Install it with `sdkmanager --install "cmake;3.30.5"`.
+val sdkCmakeVersion: String = (findProperty("kisak.cmake") as String?) ?: "3.30.5"
 
 val nativeArguments: List<String> = buildList {
     add("-DANDROID_STL=c++_static")

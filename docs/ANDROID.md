@@ -49,7 +49,13 @@ forward, which is all of `ports/android/engine/apple_bridge.cpp`.
 * Android Studio (Ladybug or newer) or the command-line SDK tools
 * NDK r27 (`27.2.12479018` is what the Gradle build pins)
 * JDK 17
-* CMake 3.22+ and Ninja — the SDK ships both
+* CMake 3.26+ and Ninja. Install the SDK's with
+  `sdkmanager --install "cmake;3.30.5"`. **Not** AGP's default 3.22.1:
+  `third-party/openal-soft` links through `$<BUILD_LOCAL_INTERFACE:...>`,
+  which CMake only learned in 3.26, and an older one fails at generate time
+  with several copies of "Expression did not evaluate to a known generator
+  expression". `ports/android/CMakeLists.txt` checks the version up front and
+  says so.
 
 ### shaderc
 
@@ -88,7 +94,7 @@ Three properties are worth knowing:
 | --- | --- | --- |
 | `-Pkisak.mp=false` | `true` | Skips the multiplayer library. SP and MP are separate compiles of the whole engine, so this halves the build. |
 | `-Pkisak.ccache=true` | `false` | Routes the native compile through `ccache`. Off by default because a machine without it would fail at configure time. |
-| `-Pkisak.cmake=<ver>` | `3.22.1` | Which SDK CMake to use, for when the pinned one has to move ahead of an NDK. |
+| `-Pkisak.cmake=<ver>` | `3.30.5` | Which SDK CMake to use. The floor is 3.26, see Prerequisites. |
 
 The release build is always signed, so the APK is installable. Set
 `KISAK_KEYSTORE`, `KISAK_KEYSTORE_PASSWORD`, `KISAK_KEY_ALIAS` and
@@ -134,7 +140,8 @@ core, which needs GCC 13 or newer for `<format>`.
 every push that touches the port, and on demand from the Actions tab. It runs
 the host tests first as a two-minute gate, then:
 
-* installs NDK `27.2.12479018`, SDK CMake 3.22.1 and Gradle 8.10.2,
+* installs NDK `27.2.12479018`, SDK CMake 3.30.5 and Gradle 8.10.2, and
+  checks the CMake it got is really 3.26 or newer,
 * builds shaderc inside the NDK and caches it against the NDK version,
 * compiles the engine through `ccache`, cached between runs,
 * checks the resulting APK actually contains `libkisakcod_sp.so` (and

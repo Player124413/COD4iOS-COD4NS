@@ -122,6 +122,22 @@ char *__cdecl getBuildNumber();
 int getBuildNumberAsInt();
 ")
 
+# OpenAL Soft 1.25.2 declares `cmake_minimum_required(VERSION 3.13...3.31)` but
+# links with $<BUILD_LOCAL_INTERFACE:alsoft::fmt>, a generator expression CMake
+# only learned in 3.26. On anything older the build configures and generates
+# and then dies with five copies of "Expression did not evaluate to a known
+# generator expression", pointing at a line in a vendored file rather than at
+# the version that is actually wrong. Fail here instead, with the fix.
+if(CMAKE_VERSION VERSION_LESS 3.26)
+    message(FATAL_ERROR
+        "This build needs CMake 3.26 or newer; you have ${CMAKE_VERSION}.\n"
+        "  Gradle:  sdkmanager --install \"cmake;3.30.5\"\n"
+        "           then build with -Pkisak.cmake=3.30.5, or change the default in\n"
+        "           ports/android/launcher/app/build.gradle.kts\n"
+        "  Script:  put a newer cmake first on PATH before tools/configure-android.sh\n"
+        "The requirement comes from third-party/openal-soft, not from the engine.")
+endif()
+
 # --- OpenAL Soft -------------------------------------------------------------
 # Same release the iOS port and the Windows build use. The OpenSL ES backend
 # is the one that works everywhere; AAudio is lower latency but only from API

@@ -58,7 +58,9 @@ env:
   # Pinned to what ports/android/launcher/app/build.gradle.kts declares. If
   # these drift apart Gradle re-downloads an NDK mid-build, or fails outright.
   NDK_VERSION: "27.2.12479018"
-  SDK_CMAKE_VERSION: "3.22.1"
+  # Not AGP's default 3.22.1: OpenAL Soft uses $<BUILD_LOCAL_INTERFACE:...>,
+  # which CMake added in 3.26.
+  SDK_CMAKE_VERSION: "3.30.5"
   COMPILE_SDK: "35"
   BUILD_TOOLS: "35.0.0"
   # AGP 8.7 requires Gradle 8.9 or newer; Kotlin 2.0.21 is tested up to 8.10.
@@ -131,11 +133,36 @@ jobs:
 
       - name: Install SDK packages
         run: |
-          sdkmanager --install \
+          if ! sdkmanager --install \
             "platforms;android-${COMPILE_SDK}" \
             "build-tools;${BUILD_TOOLS}" \
             "ndk;${NDK_VERSION}" \
             "cmake;${SDK_CMAKE_VERSION}"
+          then
+            echo "::error::sdkmanager could not install one of the pinned packages."
+            echo "CMake packages this SDK offers:"
+            sdkmanager --list 2>/dev/null | grep -E '^ *cmake;' || true
+            exit 1
+          fi
+
+      # CMake 3.26 is a hard floor - OpenAL Soft links through
+      # $<BUILD_LOCAL_INTERFACE:...>, which older CMake does not know. AGP
+      # would otherwise fall back to its default 3.22.1 and fail at generate
+      # time with five unhelpful messages about a vendored file.
+      - name: Verify SDK CMake
+        run: |
+          cmake_bin="${ANDROID_SDK_ROOT}/cmake/${SDK_CMAKE_VERSION}/bin/cmake"
+          test -x "$cmake_bin" || {
+            echo "::error::${cmake_bin} is missing after install"
+            ls -1 "${ANDROID_SDK_ROOT}/cmake" 2>/dev/null || true
+            exit 1
+          }
+          version="$("$cmake_bin" --version | head -1 | awk '{print $3}')"
+          echo "SDK CMake ${version}"
+          if [ "$(printf '3.26\n%s\n' "$version" | sort -V | head -1)" != "3.26" ]; then
+            echo "::error::CMake ${version} is older than the 3.26 OpenAL Soft needs"
+            exit 1
+          fi
 
       - name: Resolve toolchain paths
         run: |
