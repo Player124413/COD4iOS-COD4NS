@@ -69,14 +69,32 @@ with this exact command in the error message if it is missing.
 
 ### The app
 
+The repository does not carry a Gradle wrapper, so use an installed Gradle
+8.9 or newer (AGP 8.7 requires it), or open `ports/android/launcher` in
+Android Studio, which generates a wrapper for you:
+
 ```sh
 cd ports/android/launcher
-./gradlew assembleRelease
+gradle assembleRelease
 ```
 
 The APK lands in `ports/android/launcher/app/build/outputs/apk/release/`.
 Gradle drives the same `CMakeLists.txt` the script below uses, so there is one
 build description, not two.
+
+Three properties are worth knowing:
+
+| Property | Default | What it does |
+| --- | --- | --- |
+| `-Pkisak.mp=false` | `true` | Skips the multiplayer library. SP and MP are separate compiles of the whole engine, so this halves the build. |
+| `-Pkisak.ccache=true` | `false` | Routes the native compile through `ccache`. Off by default because a machine without it would fail at configure time. |
+| `-Pkisak.cmake=<ver>` | `3.22.1` | Which SDK CMake to use, for when the pinned one has to move ahead of an NDK. |
+
+The release build is always signed, so the APK is installable. Set
+`KISAK_KEYSTORE`, `KISAK_KEYSTORE_PASSWORD`, `KISAK_KEY_ALIAS` and
+`KISAK_KEY_PASSWORD` in the environment to sign with a real key; with none of
+them set it falls back to the debug key, which works for sideloading but
+changes between machines.
 
 ### Native only
 
@@ -96,10 +114,47 @@ shader translator, and the gamepad/touch input merge — are tested on any
 machine with a C++17 compiler:
 
 ```sh
-cmake -S . -B build/host -DKISAK_BUILD_PORT_TESTS=ON -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/host --parallel
-ctest --test-dir build/host -R android --output-on-failure
+sudo apt-get install -y ninja-build zlib1g-dev
+cmake -S . -B build/host -G Ninja -DKISAK_BUILD_PORT_TESTS=ON -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/host --parallel \
+    --target kisakcod_android_perf_tests \
+    --target kisakcod_android_shader_tests \
+    --target kisakcod_android_input_tests
+ctest --test-dir build/host -R android_ --output-on-failure
 ```
+
+zlib is a configure-time dependency of `ports/ios/assets`, which is pulled in
+by `KISAK_BUILD_PORT_TESTS` even though these three targets do not use it.
+Building the whole tree instead of the three targets also builds the engine
+core, which needs GCC 13 or newer for `<format>`.
+
+### CI
+
+`.github/workflows/android-apk.yml` builds a signed, installable arm64 APK on
+every push that touches the port, and on demand from the Actions tab. It runs
+the host tests first as a two-minute gate, then:
+
+* installs NDK `27.2.12479018`, SDK CMake 3.22.1 and Gradle 8.10.2,
+* builds shaderc inside the NDK and caches it against the NDK version,
+* compiles the engine through `ccache`, cached between runs,
+* checks the resulting APK actually contains `libkisakcod_sp.so` (and
+  `libkisakcod_mp.so`) for `arm64-v8a` and nothing for any other ABI, and
+  prints the signing certificate,
+* uploads the APK, the R8 mapping and the native debug symbols.
+
+The APK is signed with a debug key unless the repository has these secrets,
+in which case it is signed properly:
+
+| Secret | Contents |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias inside the keystore |
+| `ANDROID_KEY_PASSWORD` | Key password |
+
+The NDK and SDK CMake versions appear in both the Gradle build and the
+workflow. `tools/check-android-pins.sh` fails the build if they disagree; run
+it locally after changing either.
 
 ---
 
@@ -287,7 +342,10 @@ is clamped, because Direct3D 9 returned zero out of range and Vulkan faults.
 environment this was written in:
 
 * The native cross-compile. The CMake is written against the NDK toolchain but
-  has not been run through it.
+  has not been run through it. `.github/workflows/android-apk.yml` is the
+  first thing that will: its host-test job has been run locally against this
+  tree, but the APK job has not, because the environment this was written in
+  has no NDK, JDK or Android SDK.
 * The Vulkan backend, the JNI bridge, the MediaCodec video player and the
   Kotlin launcher have not been compiled. The JNI and Kotlin sides have been
   checked against each other by name — all 32 `external fun native*`

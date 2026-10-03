@@ -1,0 +1,301 @@
+name: Android APK
+
+# Builds an installable arm64 APK of the Android port.
+#
+# Two jobs: a two-minute host-test gate, then the real build. The gate exists
+# because the native build is long - the engine is ~600 translation units and
+# single-player and multiplayer are two separate compiles of all of them - and
+# there is no point spending that on a tree whose input merge or shader
+# translator is already broken.
+#
+# The APK is always signed, so it can be sideloaded straight from the run's
+# artifacts. Set the four ANDROID_* secrets to sign with a real key; without
+# them it is signed with a debug key generated on the runner, which works but
+# differs between runs (uninstall the previous build before installing).
+#
+# Game data is not shipped and is not built here. The APK is the engine; the
+# player supplies their own COD4 main/ and zone/ folders - see docs/ANDROID.md.
+
+on:
+  push:
+    branches:
+      - main
+      - "arena/**"
+    paths:
+      - "ports/android/**"
+      - "ports/ios/**"
+      - "src/**"
+      - "scripts/**"
+      - "deps/**"
+      - "third-party/openal-soft/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/android-apk.yml"
+  pull_request:
+    paths:
+      - "ports/android/**"
+      - "ports/ios/**"
+      - "src/**"
+      - "scripts/**"
+      - "deps/**"
+      - "third-party/openal-soft/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+    inputs:
+      multiplayer:
+        description: "Also build libkisakcod_mp.so (doubles the build time)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned to what ports/android/launcher/app/build.gradle.kts declares. If
+  # these drift apart Gradle re-downloads an NDK mid-build, or fails outright.
+  NDK_VERSION: "27.2.12479018"
+  SDK_CMAKE_VERSION: "3.22.1"
+  COMPILE_SDK: "35"
+  BUILD_TOOLS: "35.0.0"
+  # AGP 8.7 requires Gradle 8.9 or newer; Kotlin 2.0.21 is tested up to 8.10.
+  GRADLE_VERSION: "8.10.2"
+  # minSdk, and the platform shaderc is built against.
+  ANDROID_API: "26"
+
+jobs:
+  host-tests:
+    name: Host tests
+    # Pinned, not ubuntu-latest: src/qcommon/qcommon.h includes <format>,
+    # which libstdc++ only ships from GCC 13. 22.04 would fail to compile.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cheapest possible failure. The NDK and SDK CMake versions are declared
+      # in both the Gradle build and this workflow, and a mismatch otherwise
+      # surfaces forty minutes into the native build.
+      - name: Check version pins
+        run: bash tools/check-android-pins.sh
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          # zlib is needed at configure time by ports/ios/assets even though
+          # this job does not build that target.
+          sudo apt-get install -y --no-install-recommends ninja-build zlib1g-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build/host -G Ninja
+          -DKISAK_BUILD_PORT_TESTS=ON
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        # Only the portable Android suites. Building everything would drag in
+        # the engine core, which is not what this gate is for.
+        run: >
+          cmake --build build/host --parallel
+          --target kisakcod_android_perf_tests
+          --target kisakcod_android_shader_tests
+          --target kisakcod_android_input_tests
+
+      - name: Run
+        run: ctest --test-dir build/host -R "android_" --output-on-failure
+
+  apk:
+    name: Release APK
+    needs: host-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ports/android/CMakeLists.txt stamps buildnumber.h from
+          # `git rev-list --count HEAD`, which is 1 in a shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ""
+
+      - name: Install SDK packages
+        run: |
+          sdkmanager --install \
+            "platforms;android-${COMPILE_SDK}" \
+            "build-tools;${BUILD_TOOLS}" \
+            "ndk;${NDK_VERSION}" \
+            "cmake;${SDK_CMAKE_VERSION}"
+
+      - name: Resolve toolchain paths
+        run: |
+          ndk="${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}"
+          test -x "${ndk}/ndk-build" || {
+            echo "::error::NDK ${NDK_VERSION} did not install to ${ndk}"
+            exit 1
+          }
+          {
+            echo "ANDROID_NDK_HOME=${ndk}"
+            echo "SHADERC_DIR=${ndk}/sources/third_party/shaderc"
+            echo "APKSIGNER=${ANDROID_SDK_ROOT}/build-tools/${BUILD_TOOLS}/apksigner"
+          } >> "$GITHUB_ENV"
+
+      # shaderc ships as source in the NDK and has to be compiled once. It is
+      # the slowest thing here after the engine itself, and it only depends on
+      # the NDK version, so it caches perfectly.
+      - name: Cache shaderc
+        id: shaderc-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.SHADERC_DIR }}/libs
+            ${{ env.SHADERC_DIR }}/include
+          key: shaderc-${{ env.NDK_VERSION }}-arm64-v8a-cxx_static-api${{ env.ANDROID_API }}
+
+      - name: Build shaderc
+        if: steps.shaderc-cache.outputs.cache-hit != 'true'
+        run: |
+          test -d "$SHADERC_DIR" || {
+            echo "::error::NDK ${NDK_VERSION} does not ship sources/third_party/shaderc."
+            echo "::error::Pin an NDK that does, or point -DSHADERC_LIB at a prebuilt library."
+            exit 1
+          }
+          cd "$SHADERC_DIR" || exit 1
+          "$ANDROID_NDK_HOME/ndk-build" -j"$(nproc)" \
+            NDK_PROJECT_PATH=. \
+            APP_BUILD_SCRIPT=Android.mk \
+            APP_STL=c++_static \
+            APP_ABI=arm64-v8a \
+            APP_PLATFORM="android-${ANDROID_API}" \
+            libshaderc_combined
+
+      # Runs on a cache hit too, so a truncated or stale cache entry fails
+      # here with a readable message instead of inside CMake's find_library.
+      - name: Verify shaderc
+        run: |
+          lib="${SHADERC_DIR}/libs/c++_static/arm64-v8a/libshaderc.a"
+          header="${SHADERC_DIR}/include/shaderc/shaderc.hpp"
+          ok=1
+          [ -f "$lib" ] || { echo "::error::missing $lib"; ok=0; }
+          [ -f "$header" ] || { echo "::error::missing $header"; ok=0; }
+          if [ "$ok" = 0 ]; then
+            find "${SHADERC_DIR}/libs" "${SHADERC_DIR}/include" -maxdepth 3 2>/dev/null || true
+            exit 1
+          fi
+          echo "libshaderc.a $(stat -c%s "$lib") bytes"
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: android-${{ env.NDK_VERSION }}
+          max-size: 3G
+
+      - name: Resolve build options
+        run: |
+          # Empty on push and pull_request; only workflow_dispatch sets it.
+          mp="${{ github.event.inputs.multiplayer }}"
+          [ -n "$mp" ] || mp=true
+          echo "KISAK_MP_BUILD=${mp}" >> "$GITHUB_ENV"
+          echo "Multiplayer engine: ${mp}"
+
+      - name: Decode signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "${RUNNER_TEMP}/release.jks"
+            echo "KISAK_KEYSTORE=${RUNNER_TEMP}/release.jks" >> "$GITHUB_ENV"
+            echo "Signing with the repository key."
+          else
+            echo "::notice::No ANDROID_KEYSTORE_BASE64 secret - signing with a debug key."
+            echo "::notice::The APK installs and runs, but its signature changes between runs."
+          fi
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Assemble release APK
+        working-directory: ports/android/launcher
+        env:
+          KISAK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KISAK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KISAK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: >
+          gradle assembleRelease
+          --no-daemon
+          --stacktrace
+          -Pkisak.ccache=true
+          -Pkisak.mp=${{ env.KISAK_MP_BUILD }}
+          -Pkisak.cmake=${{ env.SDK_CMAKE_VERSION }}
+
+      # The APK can be built, signed and still be unusable if the native
+      # libraries did not make it in - a CMake target that silently produced
+      # nothing, or an ABI filter that excluded everything.
+      - name: Inspect the APK
+        working-directory: ports/android/launcher/app/build/outputs/apk/release
+        run: |
+          apk="$(ls -1 *.apk | head -1)"
+          echo "### APK" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${apk}  $(du -h "$apk" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          unzip -l "$apk" | grep '\.so$' | tee /tmp/solist >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          grep -q 'lib/arm64-v8a/libkisakcod_sp.so' /tmp/solist || {
+            echo "::error::libkisakcod_sp.so is not in the APK"
+            exit 1
+          }
+          if [ "${KISAK_MP_BUILD}" = "true" ]; then
+            grep -q 'lib/arm64-v8a/libkisakcod_mp.so' /tmp/solist || {
+              echo "::error::multiplayer was requested but libkisakcod_mp.so is not in the APK"
+              exit 1
+            }
+          fi
+          # A 32-bit library here would mean abiFilters was not applied, and
+          # the engine is a 64-bit port - it would crash on load.
+          if grep -qE 'lib/(armeabi-v7a|x86|x86_64)/' /tmp/solist; then
+            echo "::error::the APK contains a non-arm64 ABI"
+            exit 1
+          fi
+
+          "$APKSIGNER" verify --print-certs "$apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kisakcod-arm64-apk
+          path: ports/android/launcher/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # Keeps a tombstone from a player's device symbolicatable. R8's mapping
+      # does the same for the Kotlin side.
+      - name: Upload debug symbols and mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: kisakcod-symbols
+          path: |
+            ports/android/launcher/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
+            ports/android/launcher/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: warn
+
+      - name: Upload CMake logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmake-logs
+          path: |
+            ports/android/launcher/app/.cxx/**/*.txt
+            ports/android/launcher/app/.cxx/**/*.log
+            ports/android/launcher/app/.cxx/**/*.json
+          if-no-files-found: ignore

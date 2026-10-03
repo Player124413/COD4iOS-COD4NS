@@ -3,6 +3,50 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Repository root: this file is ports/android/launcher/app/build.gradle.kts.
+val repoRoot: File = rootProject.projectDir.resolve("../../..").canonicalFile
+
+// Each engine mode is a full compile of ~600 translation units, and SP and MP
+// cannot share a binary (KISAK_MP changes struct layouts). Building only SP
+// halves the build, which is the difference between a CI run that finishes
+// and one that times out.
+val buildMultiplayer: Boolean = (findProperty("kisak.mp") as String? ?: "true").toBoolean()
+
+// Opt-in because a machine without ccache on PATH would fail at configure
+// time with a confusing "CMAKE_CXX_COMPILER_LAUNCHER not found".
+val useCcache: Boolean =
+    (findProperty("kisak.ccache") as String? ?: System.getenv("KISAK_CCACHE") ?: "false").toBoolean()
+
+// The CMake the SDK provides. Overridable because the pinned one occasionally
+// has to move ahead of an NDK; the CI workflow installs this exact version.
+val sdkCmakeVersion: String = (findProperty("kisak.cmake") as String?) ?: "3.22.1"
+
+val nativeArguments: List<String> = buildList {
+    add("-DANDROID_STL=c++_static")
+    // The decompiled engine does not use exceptions or RTTI and both cost
+    // size and a little speed.
+    add("-DANDROID_CPP_FEATURES=")
+    // Not RelWithDebInfo, which is what AGP would pass: the release flags in
+    // ports/android/CMakeLists.txt are guarded on $<CONFIG:Release>, so -O2
+    // and --gc-sections would silently not apply.
+    add("-DCMAKE_BUILD_TYPE=Release")
+    val mp = if (buildMultiplayer) "ON" else "OFF"
+    add("-DKISAK_BUILD_MP=$mp")
+
+    // OpenAL Soft is vendored at the same version the FetchContent fallback
+    // would clone. Using the checkout keeps the build offline and stops the
+    // tag and the working tree drifting apart.
+    val openal = repoRoot.resolve("third-party/openal-soft")
+    if (openal.resolve("CMakeLists.txt").isFile) {
+        add("-DFETCHCONTENT_SOURCE_DIR_OPENAL=" + openal.invariantSeparatorsPath)
+    }
+
+    if (useCcache) {
+        add("-DCMAKE_C_COMPILER_LAUNCHER=ccache")
+        add("-DCMAKE_CXX_COMPILER_LAUNCHER=ccache")
+    }
+}
+
 android {
     namespace = "ovh.kisak.cod4"
     compileSdk = 35
@@ -28,14 +72,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments += listOf(
-                    "-DANDROID_STL=c++_static",
-                    // The decompiled engine does not use exceptions or RTTI
-                    // and both cost size and a little speed.
-                    "-DANDROID_CPP_FEATURES=",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                    "-DKISAK_BUILD_MP=ON"
-                )
+                arguments += nativeArguments
                 cppFlags += listOf("-std=c++20")
             }
         }
@@ -44,12 +81,30 @@ android {
     externalNativeBuild {
         cmake {
             path = file("../../../../CMakeLists.txt")
-            version = "3.22.1"
+            version = sdkCmakeVersion
+        }
+    }
+
+    // An unsigned release APK cannot be installed, which makes it useless as a
+    // CI artifact. With the four KISAK_* variables set the APK is signed for
+    // real; without them it falls back to the debug key, which is enough to
+    // sideload and play but changes between machines - uninstall the previous
+    // build before installing one signed by a different key.
+    signingConfigs {
+        val keystore = System.getenv("KISAK_KEYSTORE")
+        if (!keystore.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("KISAK_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KISAK_KEY_ALIAS")
+                keyPassword = System.getenv("KISAK_KEY_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
