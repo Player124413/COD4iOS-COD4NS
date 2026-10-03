@@ -36,6 +36,11 @@ developer working on macOS, so they are cheap to re-break:
      treats it as a fatal error rather than a warning, so it fails the
      release build and nothing else.
 
+  6. Definitions that only exist for Apple. A function the engine guards
+     with #ifdef __APPLE__ still compiles everywhere - the guard removes
+     the body, not the calls - so a shared translation unit referencing it
+     links on iOS and nowhere else.
+
 Run from the repository root; exits non-zero on the first category that
 fails, printing every instance.
 """
@@ -349,9 +354,12 @@ SHARED_IOS_SOURCES = [
     "ports/ios/network/cod4x_transport.cpp",
 ]
 
+# Linked in as libkisakcod_zoneload.a, so its definitions count too.
+ZONELOAD_SOURCE_DIR = "ports/ios/zoneload/bridge"
+
 BLOCK_SCOPE_EXTERN = re.compile(r"^\s+extern\s+(?!\"C\")[A-Za-z_][\w:<>\*&\s]*\s[A-Za-z_]\w*\s*\(")
 
-PORT_SYMBOL = re.compile(r"\b(Kisak(?:Android|Apple|D3D9)\w*)\s*\(")
+PORT_SYMBOL = re.compile(r"\b(Kisak\w+|\w+_Apple)\s*\(")
 
 
 def _strip_comments_and_strings(text: str) -> str:
@@ -533,6 +541,23 @@ def check_backend_interfaces() -> list[str]:
     return problems
 
 
+def _type_names() -> set[str]:
+    """Names introduced by struct/class declarations.
+
+    `new KisakVideoPlayer()` looks exactly like a call; it is not one.
+    """
+    names: set[str] = set()
+    for path in _port_sources() + SHARED_IOS_SOURCES:
+        text = open(path, encoding="utf-8", errors="replace").read()
+        names |= set(re.findall(r"\b(?:struct|class)\s+([A-Za-z_]\w*)", text))
+    for root, _, files in os.walk("ports/android"):
+        for name in files:
+            if name.endswith((".h", ".hpp")):
+                text = open(os.path.join(root, name), encoding="utf-8", errors="replace").read()
+                names |= set(re.findall(r"\b(?:struct|class)\s+([A-Za-z_]\w*)", text))
+    return names
+
+
 def check_port_symbols() -> list[str]:
     """Every KisakAndroid_/KisakApple_ name the port calls must be defined.
 
@@ -540,8 +565,15 @@ def check_port_symbols() -> list[str]:
     nothing anywhere in the tree defines, which is cheap and catches
     typos and deleted functions before a twenty-minute CI build does.
     """
-    defined: set[str] = set()
+    defined: set[str] = _type_names()
     referenced: dict[str, str] = {}
+    zoneload = [
+        os.path.join(ZONELOAD_SOURCE_DIR, name)
+        for name in sorted(os.listdir(ZONELOAD_SOURCE_DIR))
+        if name.endswith((".c", ".cpp"))
+    ] if os.path.isdir(ZONELOAD_SOURCE_DIR) else []
+    for path in zoneload:
+        defined |= _scan_symbols(path)[0]
     for path in _port_sources() + SHARED_IOS_SOURCES:
         file_defined, file_mentioned = _scan_symbols(path)
         defined |= file_defined
@@ -620,6 +652,66 @@ def check_backup_rules() -> list[str]:
     return problems
 
 
+# Engine directories the Android libraries compile. Everything bar the
+# Windows-only groups, which ports/android/CMakeLists.txt drops wholesale.
+ENGINE_SKIP_DIRS = {"src/radiant", "src/groupvoice", "src/win32"}
+
+
+def check_apple_only_definitions() -> list[str]:
+    """Calls into function bodies that #ifdef __APPLE__ removes on Android.
+
+    The guard takes out the definition, never the call, so every
+    translation unit still compiles and the link fails instead.
+    DB_AddXAsset_Apple reached CI this way: defined under __APPLE__ in
+    src/database/db_registry.cpp, called from the zone loader both ports
+    share.
+    """
+    guarded_definitions: dict[str, str] = {}
+    for tree in ("src", "ports/ios"):
+        for root, dirs, files in os.walk(tree):
+            dirs[:] = [d for d in dirs
+                       if os.path.join(root, d).replace("\\", "/") not in ENGINE_SKIP_DIRS]
+            if root.replace("\\", "/") in ENGINE_SKIP_DIRS:
+                continue
+            for name in sorted(files):
+                if not name.endswith((".c", ".cpp")):
+                    continue
+                path = os.path.join(root, name)
+                text = open(path, encoding="utf-8", errors="replace").read()
+                if "__APPLE__" not in text and "TARGET_OS_" not in text:
+                    continue
+                guarded = _apple_guarded_lines(text)
+                if not guarded:
+                    continue
+                for match in re.finditer(
+                    r"^[A-Za-z_][\w:<>,\*&\s]*?[\s\*&]([A-Za-z_]\w*)\s*\([^;{]*\)\s*(?:const\s*)?\{",
+                    text, re.M,
+                ):
+                    line = text.count("\n", 0, match.start()) + 1
+                    if line in guarded:
+                        guarded_definitions.setdefault(match.group(1), f"{path}:{line}")
+
+    problems = []
+    for path in _port_sources() + SHARED_IOS_SOURCES:
+        raw = open(path, encoding="utf-8", errors="replace").read()
+        text = _strip_comments_and_strings(raw)
+        guarded = _apple_guarded_lines(raw)
+        defined_here, _ = _scan_symbols(path)
+        for name, origin in guarded_definitions.items():
+            if name in defined_here or origin.startswith(path + ":"):
+                continue
+            for match in re.finditer(r"\b" + re.escape(name) + r"\s*\(", text):
+                line = text.count("\n", 0, match.start()) + 1
+                if line in guarded:
+                    continue
+                problems.append(
+                    f"{path}:{line}: {name}() is only defined under __APPLE__ "
+                    f"({origin}); Android compiles this call but not the body"
+                )
+                break
+    return problems
+
+
 def main() -> int:
     failed = False
 
@@ -654,6 +746,7 @@ def main() -> int:
         ("Block-scope extern declarations", check_block_scope_externs),
         ("Backend interface drift", check_backend_interfaces),
         ("Undefined port symbols", check_port_symbols),
+        ("Apple-only definitions", check_apple_only_definitions),
         ("Backup rules", check_backup_rules),
     ):
         problems = check()

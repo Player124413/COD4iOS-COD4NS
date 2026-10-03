@@ -1956,8 +1956,12 @@ XAssetHeader __cdecl DB_AddXAsset(XAssetType type, XAssetHeader header)
     return existingEntry->entry.asset.header;
 }
 
-#ifdef __APPLE__
-// DB_AddXAsset has internal linkage; the 64-bit zone loader registers through this.
+#if defined(__APPLE__) || defined(__ANDROID__)
+// DB_AddXAsset has internal linkage; the 64-bit zone loader registers through
+// this. Android loads the same 64-bit fastfiles through the same loader, so it
+// needs the same hook. The _Apple suffix is historical: the symbol is named in
+// ports/ios/engine/db_zoneload_apple.cpp, which both ports compile verbatim,
+// and renaming it would churn the iOS tree to no purpose.
 XAssetHeader DB_AddXAsset_Apple(XAssetType type, XAssetHeader header)
 {
     return DB_AddXAsset(type, header);
