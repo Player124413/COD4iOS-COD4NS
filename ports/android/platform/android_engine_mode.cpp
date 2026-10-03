@@ -107,8 +107,6 @@ extern "C" void KisakAndroid_PromptEngineRestart(const char *mode)
     // allocator; it cannot tear itself down from inside its own frame loop.
     // Record the choice and tell the player, exactly as the iOS port does.
     KisakAndroid_SetEngineMode(mode);
-    const bool singleplayer = mode && std::strcmp(mode, "sp") == 0;
-    extern void KisakAndroid_ShowRestartPrompt(const char *title, const char *message);
-    KisakAndroid_ShowRestartPrompt(singleplayer ? "Switching to Singleplayer" : "Switching to Multiplayer",
-                                   "Close the app and open it again to finish switching.");
+    // The activity owns the wording; it only needs to know which way we went.
+    KisakAndroid_ShowRestartPrompt(mode);
 }

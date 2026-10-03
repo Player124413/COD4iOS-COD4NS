@@ -13,7 +13,17 @@
 // which report the call once and fail.
 
 #include "generated/d3d9_default_bases.h"
+#if defined(__ANDROID__)
+// Angle brackets on purpose. A quoted include searches the including file's
+// own directory first, so "metal/metal_backend.h" always resolves to the
+// Metal interface sitting next to this file and no -I ordering can redirect
+// it. <gpu_backend.h> skips that first step and comes from the Android
+// renderer's directory instead. The two declare the same interface; the
+// Vulkan one just spells its namespace honestly.
+#include <gpu_backend.h>
+#else
 #include "metal/metal_backend.h"
+#endif
 
 #include <algorithm>
 #include <cstddef>
@@ -28,7 +38,11 @@
 bool KisakApple_GetDisplaySize(int *width, int *height);
 HWND KisakApple_GetRenderWindow();
 
+#if defined(__ANDROID__)
+namespace gpu = kisak::vk;
+#else
 namespace gpu = kisak::metal;
+#endif
 
 void KisakD3D9_NotImplemented(const char *method)
 {

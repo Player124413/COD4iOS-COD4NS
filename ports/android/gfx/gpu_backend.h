@@ -7,9 +7,17 @@
 // ports/ios/d3d9/d3d9_apple.cpp is 2000 lines of resource lifetimes, lock/unlock
 // semantics and format conversion that has nothing to do with Metal or Vulkan,
 // and forking it would mean fixing every bug twice. Instead the Android build
-// compiles that same translation unit with ports/android/gfx/compat on the
-// include path, where a forwarding `metal/metal_backend.h` aliases
-// `kisak::metal` onto `kisak::vk`.
+// compiles that same translation unit, which picks this header up through
+// `#include <gpu_backend.h>` under `#if defined(__ANDROID__)` and aliases its
+// `gpu::` onto `kisak::vk` there.
+//
+// It has to be that explicit. An earlier attempt put a forwarding
+// `metal/metal_backend.h` on the Android include path to alias `kisak::metal`
+// onto `kisak::vk` without touching the shared file. That cannot work: a
+// quoted include searches the including file's own directory first, so
+// d3d9_apple.cpp always found the Metal header sitting next to it and the
+// forwarding header was never read. It compiled perfectly and failed at link
+// time with every `kisak::metal::` symbol undefined.
 //
 // Consequences worth knowing about:
 //   * The interface uses plain C++ types only. The engine's Windows prelude

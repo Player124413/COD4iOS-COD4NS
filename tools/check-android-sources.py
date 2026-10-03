@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Three source checks whose failures are silent, confusing, or Linux-only.
+"""Source checks whose failures are silent, confusing, or Linux-only.
 
 Both of these cost a full CI run once already, and neither is visible to a
 developer working on macOS, so they are cheap to re-break:
@@ -24,6 +24,13 @@ developer working on macOS, so they are cheap to re-break:
      entry points that only Apple ships. Checked outside __APPLE__ guards
      only, so the iOS port keeps using them freely.
 
+  4. Link-time breakage the compiler cannot see. Two shapes of it have
+     reached CI already: a block-scope `extern` whose signature disagrees
+     with the definition, and the Vulkan backend drifting out of step with
+     the Metal interface the shared D3D9 layer is written against. Both
+     compile cleanly in every translation unit and only fail at link,
+     twenty minutes in.
+
 Run from the repository root; exits non-zero on the first category that
 fails, printing every instance.
 """
@@ -39,7 +46,6 @@ import sys
 INCLUDE_ROOTS = [
     "src",
     "deps",
-    "ports/android/gfx/compat",
     "ports/android/gfx",
     "ports/ios/engine",
     "ports/ios/compat/native/windows",
@@ -320,6 +326,236 @@ def check_portability() -> list[str]:
     return problems
 
 
+# Sources both engine libraries compile, mirroring KISAK_ANDROID_PORT_SOURCES
+# in ports/android/CMakeLists.txt plus the gfx and perf object libraries.
+PORT_SOURCE_DIRS = ["ports/android/engine", "ports/android/platform",
+                    "ports/android/app", "ports/android/perf", "ports/android/gfx"]
+
+# iOS translation units the Android libraries compile verbatim. A symbol
+# defined only in a .mm file is not available to them.
+SHARED_IOS_SOURCES = [
+    "ports/ios/engine/controller_input.cpp",
+    "ports/ios/engine/controller_icons.cpp",
+    "ports/ios/engine/cinematic_apple.cpp",
+    "ports/ios/engine/db_zoneload_apple.cpp",
+    "ports/ios/compat/d3dx9shader_apple.cpp",
+    "ports/ios/compat/steam_apple.cpp",
+    "ports/ios/d3d9/d3d9_apple.cpp",
+    "ports/ios/network/cod4x_transport.cpp",
+]
+
+BLOCK_SCOPE_EXTERN = re.compile(r"^\s+extern\s+(?!\"C\")[A-Za-z_][\w:<>\*&\s]*\s[A-Za-z_]\w*\s*\(")
+
+PORT_SYMBOL = re.compile(r"\b(Kisak(?:Android|Apple|D3D9)\w*)\s*\(")
+
+
+def _strip_comments_and_strings(text: str) -> str:
+    """Blank out anything a symbol must not be found inside.
+
+    Keeps offsets intact so reported line numbers stay right.
+    """
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        two = text[i:i + 2]
+        if two == "//":
+            while i < n and text[i] != "\n":
+                out[i] = " "
+                i += 1
+        elif two == "/*":
+            while i < n and text[i:i + 2] != "*/":
+                if text[i] != "\n":
+                    out[i] = " "
+                i += 1
+            for j in range(i, min(i + 2, n)):
+                out[j] = " "
+            i += 2
+        elif text[i] in "\"'":
+            quote = text[i]
+            out[i] = " "
+            i += 1
+            while i < n and text[i] != quote:
+                if text[i] == "\\":
+                    out[i] = " "
+                    i += 1
+                if i < n and text[i] != "\n":
+                    out[i] = " "
+                i += 1
+            if i < n:
+                out[i] = " "
+            i += 1
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _scan_symbols(path: str) -> tuple[set[str], dict[str, int]]:
+    """Port symbols defined in, and mentioned by, one file.
+
+    A name is *defined* when the token after its closing parenthesis is an
+    opening brace. Everything else - calls, prototypes, pointers taken - is
+    a mention. Done by matching parentheses rather than by line, because
+    both "extern \"C\" void F(...)" and a one-line "int F() { return x; }"
+    defeat anything simpler.
+    """
+    try:
+        text = _strip_comments_and_strings(open(path, encoding="utf-8", errors="replace").read())
+    except OSError:
+        return set(), {}
+    defined: set[str] = set()
+    mentioned: dict[str, int] = {}
+    for match in PORT_SYMBOL.finditer(text):
+        start = text.index("(", match.end() - 1)
+        depth, i, n = 0, start, len(text)
+        while i < n:
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        rest = text[i + 1:i + 200].lstrip()
+        # Skip trailing specifiers that may sit between ) and {.
+        for word in ("const", "noexcept", "override", "final"):
+            if rest.startswith(word):
+                rest = rest[len(word):].lstrip()
+        name = match.group(1)
+        if rest.startswith("{"):
+            defined.add(name)
+        else:
+            mentioned.setdefault(name, text.count("\n", 0, match.start()) + 1)
+    return defined, mentioned
+
+
+def _port_sources() -> list[str]:
+    found = []
+    for directory in PORT_SOURCE_DIRS:
+        for root, _, files in os.walk(directory):
+            for name in sorted(files):
+                if name.endswith((".c", ".cpp")):
+                    found.append(os.path.join(root, name))
+    return sorted(found)
+
+
+def check_block_scope_externs() -> list[str]:
+    """Function declarations hidden inside a function body.
+
+    These bypass the header that would have checked them against the
+    definition. KisakAndroid_ShowRestartPrompt was declared this way with
+    two parameters and defined with one; it linked nowhere.
+    """
+    problems = []
+    for path in _port_sources() + SHARED_IOS_SOURCES:
+        for number, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
+            if BLOCK_SCOPE_EXTERN.match(line.split("//", 1)[0]):
+                problems.append(
+                    f"{path}:{number}: function declared extern at block scope; "
+                    f"put it in a header so the signature is checked"
+                )
+    return problems
+
+
+def check_backend_interfaces() -> list[str]:
+    """kisak::vk must still cover everything kisak::metal declares.
+
+    ports/ios/d3d9/d3d9_apple.cpp is compiled by both ports and binds its
+    `gpu::` alias to one namespace or the other. Anything the Metal header
+    declares and the Vulkan header does not is an undefined symbol in the
+    Android libraries.
+    """
+    metal = "ports/ios/d3d9/metal/metal_backend.h"
+    vulkan = "ports/android/gfx/gpu_backend.h"
+    if not (os.path.exists(metal) and os.path.exists(vulkan)):
+        return []
+
+    def declarations(path: str) -> dict[str, str]:
+        text = open(path, encoding="utf-8", errors="replace").read()
+        text = re.sub(r"//[^\n]*", "", text)
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        found = {}
+        for match in re.finditer(
+            r"^\s*([A-Za-z_][\w:<>,\s\*&]*?[\s\*&])([A-Za-z_]\w*)\s*\(([^;{]*)\)\s*;",
+            text, re.M,
+        ):
+            arguments = re.sub(r"\s+", " ", match.group(3)).strip()
+            arguments = re.sub(r"\s*=\s*[^,]+", "", arguments)   # defaults are not ABI
+            # Parameter names are not part of the signature either.
+            arguments = ", ".join(
+                re.sub(r"(?<=[\s\*&])[A-Za-z_]\w*$", "", a.strip()).strip()
+                for a in arguments.split(",")
+            )
+            found[match.group(2)] = f"{match.group(1).strip()} ({arguments})"
+        return found
+
+    problems = []
+
+    # The binding itself. d3d9_apple.cpp is compiled by both ports, so every
+    # mention of the Metal backend in it has to sit in a region Android does
+    # not reach - otherwise the Android libraries carry calls into
+    # kisak::metal that nothing defines, which is exactly how this broke.
+    shared = "ports/ios/d3d9/d3d9_apple.cpp"
+    if os.path.exists(shared):
+        text = open(shared, encoding="utf-8", errors="replace").read()
+        guarded = _apple_guarded_lines(text)
+        reaches_vulkan = False
+        for number, line in enumerate(text.splitlines(), 1):
+            code = line.split("//", 1)[0]
+            if "kisak::vk" in code and number not in guarded:
+                reaches_vulkan = True
+            if number in guarded:
+                continue
+            if "kisak::metal" in code or "metal/metal_backend.h" in code:
+                problems.append(
+                    f"{shared}:{number}: the Metal backend is referenced outside an "
+                    f"__APPLE__ guard; Android compiles this file too"
+                )
+        if not reaches_vulkan:
+            problems.append(
+                f"{shared}: nothing binds the Android build to kisak::vk"
+            )
+
+    declared_metal = declarations(metal)
+    declared_vulkan = declarations(vulkan)
+    for name in sorted(set(declared_metal) - set(declared_vulkan)):
+        problems.append(f"{vulkan}: missing {name}(), which {metal} declares")
+    for name in sorted(set(declared_metal) & set(declared_vulkan)):
+        if declared_metal[name] != declared_vulkan[name]:
+            problems.append(
+                f"{vulkan}: {name} is {declared_vulkan[name]}, "
+                f"but {metal} declares {declared_metal[name]}"
+            )
+    return problems
+
+
+def check_port_symbols() -> list[str]:
+    """Every KisakAndroid_/KisakApple_ name the port calls must be defined.
+
+    Not a linker, and it does not try to be: it only reports names that
+    nothing anywhere in the tree defines, which is cheap and catches
+    typos and deleted functions before a twenty-minute CI build does.
+    """
+    defined: set[str] = set()
+    referenced: dict[str, str] = {}
+    for path in _port_sources() + SHARED_IOS_SOURCES:
+        file_defined, file_mentioned = _scan_symbols(path)
+        defined |= file_defined
+        for name, number in file_mentioned.items():
+            referenced.setdefault(name, f"{path}:{number}")
+
+    # The engine tree defines a few of these itself.
+    for root, _, files in os.walk("src"):
+        for name in files:
+            if name.endswith((".c", ".cpp")):
+                defined |= _scan_symbols(os.path.join(root, name))[0]
+
+    return [
+        f"{where}: {name}() is called but nothing defines it"
+        for name, where in sorted(referenced.items())
+        if name not in defined
+    ]
+
+
 def main() -> int:
     failed = False
 
@@ -349,6 +585,20 @@ def main() -> int:
             print(f"  {problem}")
     else:
         print("Apple-isms outside __APPLE__ guards: ok")
+
+    for label, check in (
+        ("Block-scope extern declarations", check_block_scope_externs),
+        ("Backend interface drift", check_backend_interfaces),
+        ("Undefined port symbols", check_port_symbols),
+    ):
+        problems = check()
+        if problems:
+            failed = True
+            print(f"{label} ({len(problems)}):")
+            for problem in problems:
+                print(f"  {problem}")
+        else:
+            print(f"{label}: ok")
 
     return 1 if failed else 0
 

@@ -81,6 +81,28 @@ void KisakAndroid_SetSoftKeyboardVisible(int visible);
 void KisakAndroid_TouchEvent(int pointerId, int phase, float x, float y);
 
 // ---------------------------------------------------------------------------
+// Calls out to the Java activity (ports/android/app/jni_bridge.cpp)
+//
+// Declared here rather than at each call site: a block-scope `extern` that
+// disagrees with the definition compiles happily and only fails at link time,
+// which on this project means twenty minutes into a CI run.
+
+void KisakAndroid_ShowFatalError(const char *message);
+void KisakAndroid_RequestQuit();
+void KisakAndroid_OpenURL(const char *url);
+// Returns a pointer to an internal buffer, valid until the next call.
+const char *KisakAndroid_GetClipboardText();
+void KisakAndroid_SetClipboardText(const char *text);
+// `mode` is "sp" or "mp"; the activity supplies the dialog's wording.
+void KisakAndroid_ShowRestartPrompt(const char *mode);
+void KisakAndroid_PlatformSoftKeyboard(int visible);
+void KisakAndroid_RequestFrameRate(float hz);
+void KisakAndroid_SetRenderResolution(uint32_t width, uint32_t height);
+// Timestamp range of the frame before last. A query cannot be read back in
+// the frame that wrote it without stalling the GPU.
+int64_t KisakAndroid_LastGpuFrameTimeNs();
+
+// ---------------------------------------------------------------------------
 // Engine mode (ports/android/platform/android_engine_mode.cpp)
 
 extern "C" {
@@ -89,6 +111,11 @@ void KisakAndroid_SetEngineMode(const char *mode);
 const char *KisakAndroid_GetEngineMode();
 void KisakAndroid_PromptEngineRestart(const char *mode);
 }
+
+// ---------------------------------------------------------------------------
+// Sockets (ports/android/platform/android_net.cpp, multiplayer only)
+
+void Sys_InitNetworking(uint16_t clientPort, uint16_t serverPort);
 
 // ---------------------------------------------------------------------------
 // Thermal and power signals, pushed from Java (PowerManager has no NDK API

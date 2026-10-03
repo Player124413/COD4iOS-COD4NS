@@ -254,7 +254,6 @@ void Sys_Error(const char *error, ...)
     }
     // Hand the text to the Java layer so the player sees a dialog instead of
     // the app vanishing. Implemented in ports/android/app/jni_bridge.cpp.
-    extern void KisakAndroid_ShowFatalError(const char *message);
     KisakAndroid_ShowFatalError(message);
 
     // abort() rather than exit(): it produces a tombstone with a native
@@ -283,7 +282,6 @@ void __cdecl Sys_Quit()
     Sys_NormalExit();
     // finishAndRemoveTask() on the Java side; calling exit() directly leaves
     // the task card behind and the next launch restores a dead activity.
-    extern void KisakAndroid_RequestQuit();
     KisakAndroid_RequestQuit();
     // The engine expects Sys_Quit never to return.
     for (;;)
@@ -292,7 +290,6 @@ void __cdecl Sys_Quit()
 
 void __cdecl Sys_OpenURL(const char *url, int doexit)
 {
-    extern void KisakAndroid_OpenURL(const char *url);
     if (url && *url)
         KisakAndroid_OpenURL(url);
     if (doexit)
@@ -304,7 +301,6 @@ void __cdecl Sys_OpenURL(const char *url, int doexit)
 
 char *__cdecl Sys_GetClipboardData()
 {
-    extern const char *KisakAndroid_GetClipboardText();
     const char *text = KisakAndroid_GetClipboardText();
     if (!text || !*text)
         return nullptr;
@@ -318,7 +314,6 @@ char *__cdecl Sys_GetClipboardData()
 
 int __cdecl Sys_SetClipboardData(const char *text)
 {
-    extern void KisakAndroid_SetClipboardText(const char *text);
     KisakAndroid_SetClipboardText(text ? text : "");
     return 1;
 }
@@ -398,7 +393,6 @@ void __cdecl NET_Init()
 {
     const dvar_t *clientPort = Dvar_RegisterInt("net_port", 28960, 0, 0xFFFF, DVAR_LATCH, "Network port");
     const dvar_t *serverPort = Dvar_RegisterInt("net_serverPort", 28960, 0, 0xFFFF, DVAR_LATCH, "Server network port");
-    extern void Sys_InitNetworking(uint16_t clientPort, uint16_t serverPort);
     // The client binds an ephemeral port so it can run alongside a server.
     Sys_InitNetworking(static_cast<uint16_t>(clientPort->current.integer + 1),
                        static_cast<uint16_t>(serverPort->current.integer));
@@ -586,7 +580,6 @@ void KisakAndroid_SetSoftKeyboardVisible(int visible)
     // JNI calls in the port. Split in two so the engine-visible flag lives
     // next to the rest of the input state and the Java call stays on the
     // other side of the boundary.
-    extern void KisakAndroid_PlatformSoftKeyboard(int visible);
     KisakAndroid_PlatformSoftKeyboard(visible);
 }
 
@@ -776,14 +769,12 @@ int KisakAndroid_RunEngine(const char *commandLine)
         // The GPU backend reports the previous frame's timestamp range here;
         // a query cannot be read back in the frame that wrote it without a
         // stall, which would cost more than the measurement is worth.
-        extern int64_t KisakAndroid_LastGpuFrameTimeNs();
         director.ReportGpuTime(KisakAndroid_LastGpuFrameTimeNs());
 
         const int64_t frameEnd = nowNs();
         const auto result = director.EndFrame(frameEnd);
         if (result.resolutionChanged)
         {
-            extern void KisakAndroid_SetRenderResolution(uint32_t width, uint32_t height);
             KisakAndroid_SetRenderResolution(result.renderWidth, result.renderHeight);
         }
 

@@ -268,11 +268,11 @@ set(KISAK_ANDROID_PORT_SOURCES
 set(KISAK_ANDROID_INCLUDES
     "${SRC_DIR}"
     "${DEPS_DIR}"
-    # Ahead of ports/ios/d3d9 on the search path, so d3d9_apple.cpp's
-    # #include "metal/metal_backend.h" resolves to the forwarding header that
-    # aliases kisak::metal to kisak::vk. That is what lets the 2000-line
-    # Direct3D 9 layer compile unmodified against a Vulkan backend.
-    "${CMAKE_CURRENT_LIST_DIR}/gfx/compat"
+    # Supplies <gpu_backend.h>, which d3d9_apple.cpp includes with angle
+    # brackets under #if defined(__ANDROID__). Quoted includes search the
+    # including file's own directory first, so no -I ordering can redirect
+    # its "metal/metal_backend.h" away from the Metal header next to it;
+    # the shared file has to name the Vulkan interface explicitly.
     "${CMAKE_CURRENT_LIST_DIR}/gfx"
     "${IOS_DIR}/engine"
     "${IOS_DIR}/compat/native/windows"
