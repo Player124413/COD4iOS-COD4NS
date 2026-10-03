@@ -6632,7 +6632,7 @@ void __cdecl Material_SortInternal(Material **sortedMaterials, uint32_t material
     }
 }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include <atomic>
 #include <mutex>
 bool __cdecl Sys_IsMainThread();
@@ -6641,7 +6641,7 @@ bool __cdecl Sys_IsRenderThread();
 
 void __cdecl Material_Sort()
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     // The render thread's remote screen update and the main thread can both reach R_BeginFrame; two sorts over the
     // shared rgp.sortedMaterials array can hand std::sort a transient null. Serialize and sort a private copy.
     static std::mutex materialSortMutex;

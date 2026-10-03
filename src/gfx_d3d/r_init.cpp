@@ -4316,7 +4316,7 @@ void R_ReleaseForShutdownOrReset()
             }
             varCopy = dx.windows[windowIndex].swapChain;
             dx.windows[windowIndex].swapChain = 0;
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
             // GetSwapChain adds a caller reference to the device-owned implicit
             // chain. Release this reference; Device::ReleaseImplicitTargets
             // releases the remaining owner reference during shutdown/reset.

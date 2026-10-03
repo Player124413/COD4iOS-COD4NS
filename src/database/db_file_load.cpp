@@ -214,7 +214,7 @@ void __cdecl DB_FinishGeometryBlocks(XZoneMemory *zoneMem)
     }
 }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 void DB_LoadXFileContent_Apple(XZoneMemory *zoneMem, const char *zoneName);
 #endif
 
@@ -294,9 +294,12 @@ void __cdecl DB_LoadXFileInternal()
     }
     DB_AllocXZoneMemory(file.blockSize, g_load.filename, g_load.zoneMem, g_load.allocType);
     DB_InitStreams(g_load.zoneMem);
-#ifdef __APPLE__
-    // Zones are stored with 32-bit layouts; the Apple build loads them into
-    // native 64-bit structures (ports/ios/engine/db_zoneload_apple.cpp).
+#if defined(__APPLE__) || defined(__ANDROID__)
+    // Zones are stored with 32-bit layouts; a 64-bit build loads them into
+    // native structures instead (ports/ios/engine/db_zoneload_apple.cpp,
+    // which both the Apple and the Android ports compile). Taking the #else
+    // branch on a 64-bit target hands zlib a destination sized for 32-bit
+    // structures and it walks straight off the end of the block.
     DB_LoadXFileContent_Apple(g_load.zoneMem, g_load.filename);
 #else
     Load_XAssetListCustom();

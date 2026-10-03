@@ -13,7 +13,7 @@
 #include <qcommon/cmd.h>
 #include <cgame_mp/cg_local_mp.h>
 #include <devgui/devgui.h>
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include "../../ports/ios/engine/controller_input.h"
 #endif
 
@@ -406,7 +406,7 @@ usercmd_s *__cdecl CL_CreateCmd(usercmd_s *result, int localClientNum)
         CL_CmdButtons(localClientNum, &cmd);
         CL_KeyMove(localClientNum, &cmd);
         CL_MouseMove(localClientNum, &cmd);
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
         KisakApple_ControllerMove(&cmd, frame_msec * 0.001f);
 #endif
         if (LocalClientGlobals->viewangles[0] - oldAngles <= 90.0)

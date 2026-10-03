@@ -416,6 +416,13 @@ void KisakAndroid_LogPrintf(const char *format, ...)
     KisakAndroid_LogWrite(message);
 }
 
+void KisakAndroid_LogBacktrace()
+{
+    if (g_fd.load(std::memory_order_relaxed) < 0)
+        KisakAndroid_LogOpen();
+    WriteBacktrace();
+}
+
 void KisakAndroid_LogFlush()
 {
     // Nothing is buffered in user space, so this only has to push the page

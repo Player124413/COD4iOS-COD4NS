@@ -1318,7 +1318,7 @@ void __cdecl DrawHudElemMaterial(int32_t localClientNum, const hudelem_s *elem, 
         offsetY = -(cghe->height - height);
         y = OffsetHudElemY(elem, cghe, offsetY);
         float x = cghe->x;
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
         // Mods commonly author screen masks as the complete centered 640x480 canvas.
         // Expand only that exact canvas; ordinary HUD widgets retain their placement.
         const ScreenPlacement &place = scrPlaceView[localClientNum];

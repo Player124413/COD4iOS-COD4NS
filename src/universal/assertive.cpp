@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include <map>
 #include <mutex>
 #include <string>
@@ -722,7 +722,7 @@ void MyAssertHandler(const char *filename, int line, int type, const char *fmt, 
             fclose( f );
         }
     }
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__ANDROID__)
     // Report and continue, like the shipped non-pure build, but keep the
     // failure visible: 64-bit layout bugs surface here first.
     {
@@ -750,10 +750,17 @@ void MyAssertHandler(const char *filename, int line, int type, const char *fmt, 
         }
         if (print)
         {
+#if defined(__APPLE__)
             fprintf(stderr, "ASSERT FAIL %s:%d (type %d): %s\n", filename ? filename : "?", line, type, m);
             void *frames[32];
             const int frameCount = backtrace(frames, 32);
             backtrace_symbols_fd(frames + 1, frameCount - 1, 2);
+#else
+            // stderr goes nowhere on Android, and bionic has no
+            // <execinfo.h>; write to the file the launcher can hand over.
+            KisakAndroid_LogPrintf("ASSERT FAIL %s:%d (type %d): %s\n", filename ? filename : "?", line, type, m);
+            KisakAndroid_LogBacktrace();
+#endif
         }
     }
 #endif

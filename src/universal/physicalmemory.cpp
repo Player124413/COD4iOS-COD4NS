@@ -19,11 +19,12 @@ void __cdecl PMem_Init()
 {
     uint8_t *memory; // [esp+0h] [ebp-4h]
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     // 128MB is the stock reservation. Modded multiplayer servers ship extra fastfiles that do not
     // fit in it ("Need N more bytes of ram"), and the mapping is lazy here, so reserve more:
     // untouched pages cost nothing. 256MB still came up ~12MB short loading mp_bloc behind the
     // cod4r mod, so reserve 512MB - the phone only commits what the map actually touches.
+    // Android reserves the same way: the mapping is lazy there too.
     const size_t pmemSize = 0x20000000u; // 512MB
 #else
     const size_t pmemSize = 0x8000000u;

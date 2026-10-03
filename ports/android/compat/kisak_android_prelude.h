@@ -77,6 +77,12 @@ typedef LARGE_INTEGER _LARGE_INTEGER;
 #define PF_NON_TEMPORAL_LEVEL_ALL 0
 #define PreFetchCacheLine(level, address) __builtin_prefetch(address)
 
+// ports/android/platform/android_log.cpp. Declared here rather than
+// included, because engine translation units reach these from inside
+// __ANDROID__ branches that mirror Apple ones using <execinfo.h>.
+void KisakAndroid_LogPrintf(const char *format, ...) __attribute__((format(printf, 1, 2)));
+void KisakAndroid_LogBacktrace();
+
 #ifdef __cplusplus
 extern "C++" {
 std::uint64_t Sys_ReadRawTimer();

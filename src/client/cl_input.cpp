@@ -14,7 +14,7 @@
 #include <devgui/devgui.h>
 #include <ui/ui.h>
 #include <gfx_d3d/r_dvars.h>
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include "../../ports/ios/engine/controller_input.h"
 #endif
 
@@ -1607,7 +1607,10 @@ void __cdecl CL_CreateCmd(usercmd_s *result)
         CL_CmdButtons(result);
         CL_KeyMove(result);
         CL_MouseMove(result);
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
+        // Shared with iOS: ports/ios/engine/controller_input.cpp is in the
+        // Android source list. Without this the touch stick and the
+        // gamepad move the view nowhere.
         KisakApple_ControllerMove(result, frame_msec * 0.001f);
 #endif
         // KISAKTODO

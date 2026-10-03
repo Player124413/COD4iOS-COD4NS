@@ -186,7 +186,7 @@ void __cdecl Com_InitPlayerProfiles(int localClientNum)
         "true if player profile has been selected.");
     Dvar_ChangeResetValue((dvar_t*)ui_playerProfileAlreadyChosen, 1);
     com_playerProfile = Dvar_RegisterString("com_playerProfile", (char *)"", DVAR_ROM, "Player profile");
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     // Opt-in for automated runs that start a map from the command line (the menu normally picks a profile):
     // KISAK_AUTO_PROFILE=<name> creates the profile folder if needed and makes it the active profile.
     if (const char *autoProfile = getenv("KISAK_AUTO_PROFILE"); autoProfile && *autoProfile && strlen(autoProfile) < 64)

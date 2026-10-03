@@ -28,6 +28,11 @@ void KisakAndroid_LogWrite(const char *text);
 void KisakAndroid_LogPrintf(const char *format, ...) __attribute__((format(printf, 1, 2)));
 void KisakAndroid_LogFlush();
 
+// Appends the calling thread's stack to the log. bionic has no
+// <execinfo.h>, so engine code that would call backtrace() on Apple uses
+// this instead.
+void KisakAndroid_LogBacktrace();
+
 // Catches the signals that kill a native process, appends the signal, the
 // faulting address and a backtrace to the log, then lets the default handler
 // run so the system still produces its tombstone.

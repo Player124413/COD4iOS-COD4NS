@@ -7,6 +7,9 @@
 #ifdef __APPLE__
 #include "../../ports/ios/platform/apple_engine_mode.h"
 #endif
+#if defined(__APPLE__) || defined(__ANDROID__)
+#include "../../ports/ios/engine/controller_input.h"
+#endif
 #include "client_mp.h"
 
 #include <xanim/xanim.h>
@@ -3898,8 +3901,10 @@ void __cdecl CL_InitOnceForAllClients()
         (DvarLimits)0x32000000000LL,
         DVAR_NOFLAG,
         "Y position to draw the profile data");
-#ifdef __APPLE__
-    { void KisakApple_ControllerRegisterDvars(); KisakApple_ControllerRegisterDvars(); }
+#if defined(__APPLE__) || defined(__ANDROID__)
+    // Declared by controller_input.h above rather than at block scope,
+    // which would hide it from header checking.
+    KisakApple_ControllerRegisterDvars();
 #endif
     name = Dvar_RegisterString("name", "", 3u, "Player name");
     Dvar_RegisterInt("rate", 25000, (DvarLimits)0x61A8000003E8LL, DVAR_ARCHIVE | DVAR_USERINFO, "Player's preferred baud rate");

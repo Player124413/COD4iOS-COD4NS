@@ -5,6 +5,8 @@
 #include <universal/q_shared.h>
 #ifdef __APPLE__
 #include "../../ports/ios/platform/apple_engine_mode.h"
+#elif defined(__ANDROID__)
+#include "../../ports/android/platform/android_platform.h"
 #endif
 #include "client.h"
 #include <game/g_local.h>
@@ -1104,6 +1106,13 @@ void __cdecl CL_startMultiplayer_f()
     KisakApple_SetEngineMode("mp");
     Com_Printf(CON_CHANNEL_CLIENT, "Engine mode set to multiplayer; reopen the app to switch.\n");
     KisakApple_PromptEngineRestart("mp");
+#elif defined(__ANDROID__)
+    // Same reasoning as the Apple port above: libkisakcod_mp.so is a separate
+    // library whose struct layouts differ, so the mode is recorded and the
+    // launcher loads the other one on the next process.
+    KisakAndroid_SetEngineMode("mp");
+    Com_Printf(CON_CHANNEL_CLIENT, "Engine mode set to multiplayer; reopen the app to switch.\n");
+    KisakAndroid_PromptEngineRestart("mp");
 #else
     Com_SyncThreads();
     Sys_SuspendOtherThreads();

@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include <cstdio>
 #include <mutex>
 #include <set>
@@ -2219,7 +2219,7 @@ void __cdecl DB_GetXAsset(XAssetType type, XAssetHeader header)
     {
         if (!assetEntryIndex)
         {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
             // A marked reference that is not a registered pool header. Report it
             // once per asset instead of asserting and walking entry 0 forever.
             static std::mutex reportLock;
@@ -2490,8 +2490,10 @@ void __cdecl  DB_Thread(uint32_t threadContext)
     if (setjmp(*Value))
     {
         Profile_Recover(1);
-#if defined(__APPLE__)
-        // No debugger trap on iOS: let Com_ErrorAbort report the error.
+#if defined(__APPLE__) || defined(__ANDROID__)
+        // No debugger trap on iOS or Android: let Com_ErrorAbort report the
+        // error. The NDK is clang, so without this Android would take the
+        // __llvm__ branch and raise SIGTRAP on every engine error.
 #elif defined(__llvm__)
         __builtin_debugtrap();
 #else
@@ -3121,7 +3123,7 @@ void __cdecl DB_ShutdownXAssets()
     Sys_UnlockWrite(&db_hashCritSect);
 }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 void DB_FreeXFileContent_Apple(XZoneMemory *zoneMem);
 #endif
 
@@ -3129,7 +3131,7 @@ void __cdecl DB_FreeXZoneMemory(XZoneMemory *zoneMem)
 {
     uint32_t blockIndex; // [esp+0h] [ebp-4h]
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     DB_FreeXFileContent_Apple(zoneMem);
 #endif
     DB_ReleaseGeometryBuffers(zoneMem);

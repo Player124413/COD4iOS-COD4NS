@@ -644,12 +644,16 @@ char __cdecl Com_ErrorIsNotice(const char* errorMessage)
 
 void __cdecl Com_PrintStackTrace()
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     // ERR_DROP unwinds without a crash report. Keep its call site in the engine
     // log too, so device-only loading errors can be diagnosed.
+#if defined(__APPLE__)
     void *frames[32];
     const int count = backtrace(frames, 32);
     backtrace_symbols_fd(frames, count, fileno(stderr));
+#else
+    KisakAndroid_LogBacktrace();
+#endif
 #else
     // KISAKTODO
    //DoStackTrace(g_stackTrace, 1);
@@ -701,7 +705,7 @@ void Com_Error(errorParm_t code, const char* fmt, ...)
         code = ERR_DROP;
     ERR_JMP:
         iassert(com_errorEntered);
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
         // Surface the error before unwinding; the jump target may abort without printing it.
         fprintf(stderr, "Com_Error(%d): %s\n", (int)code, com_errorMessage);
 #endif
@@ -1041,7 +1045,7 @@ void __cdecl Com_SetScriptSettings()
 
 void __cdecl Com_RunAutoExec(int localClientNum, int controllerIndex)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     // autoexec_dev.cfg ("automatically executes in development builds") sets developer 2 / developer_script 1,
     // which turns tolerated script issues into thread aborts. Retail-like by default; opt in with KISAK_DEV_AUTOEXEC=1.
     if (const char *devAutoExec = getenv("KISAK_DEV_AUTOEXEC"); !devAutoExec || strcmp(devAutoExec, "1") != 0)
@@ -1523,8 +1527,8 @@ void COM_PlayIntroMovies()
     if (!com_dedicated->current.integer)
 #endif
     {
-#ifdef __APPLE__
-        // The Apple port plays the intro on every launch (it is skippable like any cinematic),
+#if defined(__APPLE__) || defined(__ANDROID__)
+        // This port plays the intro on every launch (it is skippable like any cinematic),
         // rather than only the first time a profile runs the game. A startup command line that
         // loads a map straight away (+devmap ...) skips it: the intro would otherwise play the
         // logo movies on top of the level that is loading.
@@ -1607,7 +1611,7 @@ void Com_InitDvars()
     com_developer_script_abort_on_error = Dvar_RegisterBool("developer_script_abort_on_error", 0, DVAR_NOFLAG, "Halt Execution when an error is found in the scripts (Retail does not do this)"); // LWSS ADD
     com_logfile = Dvar_RegisterInt(
         "logfile",
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
         // Sync every write on this port: the async path buffers 64K and a hang or a kill loses
         // exactly the tail that says what went wrong, which has cost several debugging rounds.
         2,

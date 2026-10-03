@@ -712,6 +712,73 @@ def check_apple_only_definitions() -> list[str]:
     return problems
 
 
+def _android_shared_ios_sources() -> list[str]:
+    """Files under ports/ios that ports/android/CMakeLists.txt also compiles."""
+    try:
+        text = open("ports/android/CMakeLists.txt", encoding="utf-8").read()
+    except OSError:
+        return []
+    found = set()
+    for match in re.finditer(r"\$\{IOS_DIR\}/([\w/.\-]+\.cpp)", text):
+        path = os.path.join("ports/ios", match.group(1))
+        if os.path.exists(path):
+            found.add(path)
+    return sorted(found)
+
+
+def check_apple_gated_shared_calls() -> list[str]:
+    """Engine calls to port functions the Android libraries already contain.
+
+    The Android build compiles a set of files out of ports/ios, so the
+    functions they define are linked into libkisakcod_*.so. When the engine
+    calls one of those from inside an __APPLE__ guard, Android silently takes
+    the other branch - the original 32-bit Windows code - and the symbol is
+    present but never reached. Nothing fails at build time: the definition
+    links, the call simply is not compiled.
+
+    The zone loader failed exactly this way. db_zoneload_apple.cpp was in the
+    Android source list, but DB_LoadXFileInternal only called
+    DB_LoadXFileContent_Apple under __APPLE__, so Android kept loading zones
+    with 32-bit structure layouts and zlib decompressed off the end of the
+    block. The same guard had hidden KisakApple_ControllerMove, which left
+    the touch stick and the gamepad unable to move the view.
+    """
+    shared: set[str] = set()
+    for path in _android_shared_ios_sources():
+        defined, _ = _scan_symbols(path)
+        shared |= defined
+    if not shared:
+        return []
+
+    problems: list[str] = []
+    for root, _, files in os.walk("src"):
+        for name in sorted(files):
+            if not name.endswith((".c", ".cpp", ".h")):
+                continue
+            path = os.path.join(root, name)
+            try:
+                raw = open(path, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            if "__APPLE__" not in raw:
+                continue
+            guarded = _apple_guarded_lines(raw)
+            if not guarded:
+                continue
+            text = _strip_comments_and_strings(raw)
+            for match in PORT_SYMBOL.finditer(text):
+                symbol = match.group(1)
+                if symbol not in shared:
+                    continue
+                line = text.count("\n", 0, match.start()) + 1
+                if line in guarded:
+                    problems.append(
+                        f"{path}:{line}: {symbol}() is compiled into the Android "
+                        "libraries, but this use is behind an __APPLE__ guard "
+                        "that Android never reaches")
+    return problems
+
+
 def main() -> int:
     failed = False
 
@@ -747,6 +814,7 @@ def main() -> int:
         ("Backend interface drift", check_backend_interfaces),
         ("Undefined port symbols", check_port_symbols),
         ("Apple-only definitions", check_apple_only_definitions),
+        ("Apple-gated shared calls", check_apple_gated_shared_calls),
         ("Backup rules", check_backup_rules),
     ):
         problems = check()

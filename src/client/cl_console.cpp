@@ -2031,8 +2031,9 @@ void __cdecl Con_DrawMessageLineOnHUD(
         }
         else if ((line->flags & 0x20) != 0)
         {
-#ifdef __APPLE__
-            // Leave room above the home indicator and the bottom HUD.
+#if defined(__APPLE__) || defined(__ANDROID__)
+            // Leave room above the home indicator or gesture bar, and the
+            // bottom HUD.
             yAdj -= 24.0f * scrPlace->scaleVirtualToReal[1];
 #endif
             R_AddCmdDrawConsoleTextSubtitle(

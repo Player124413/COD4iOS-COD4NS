@@ -405,7 +405,7 @@ struct __declspec(align(16)) cbrush_t // sizeof=0x50
     // padding byte
     // padding byte
 };
-#if defined(__APPLE__) && UINTPTR_MAX > 0xFFFFFFFFu
+#if (defined(__APPLE__) || defined(__ANDROID__)) && UINTPTR_MAX > 0xFFFFFFFFu
 // Must match the zone loader IW3::cbrush_t stride (static_assert in kisak_zone_bridge.cpp).
 static_assert(sizeof(cbrush_t) == 96, "cbrush_t stride differs from the zone loader");
 #endif

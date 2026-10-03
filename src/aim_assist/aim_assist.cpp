@@ -192,7 +192,7 @@ void AimAssist_RegisterDvars()
 #elif KISAK_SP
     aim_slowdown_enabled = Dvar_RegisterBool(
         "aim_slowdown_enabled",
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
         1,
 #else
         0,
@@ -317,7 +317,7 @@ void AimAssist_RegisterDvars()
 #elif KISAK_SP
     aim_lockon_enabled = Dvar_RegisterBool(
         "aim_lockon_enabled",
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
         1,
 #else
         0,

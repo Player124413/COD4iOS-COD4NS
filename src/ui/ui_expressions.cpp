@@ -7,7 +7,7 @@
 
 #include <win32/win_storage.h>
 #include <universal/profile.h>
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include "../../ports/ios/engine/controller_input.h"
 #endif
 
@@ -1710,7 +1710,8 @@ void __cdecl GetPlayerStatRangeBitsSet(int localClientNum, OperandList *list, Op
 
 int __cdecl GetKeyBindingLocalizedString(int localClientNum, const char *command, char *keys, bool single)
 {
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__ANDROID__)
+    // Gamepad glyphs instead of keyboard names, for both ports.
     if (KisakApple_ControllerBinding(command, keys, 256))
         return 1;
 #endif
