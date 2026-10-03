@@ -697,6 +697,58 @@ int KisakAndroid_RunEngine(const char *commandLine)
     if (g_engineRunning.exchange(true))
         return 0;
 
+    // Before anything that touches a file, and before anything that could
+    // call Sys_DefaultInstallPath().
+    //
+    // The engine finds game data two ways, and on Android both start out
+    // wrong. Win_InitLocalization fopen()s the bare name "localization.txt",
+    // which resolves against the working directory - and an Android process
+    // starts in "/". Sys_DefaultInstallPath() prefixes the zone paths
+    // DB_BuildOSPath builds, and off Windows it takes $KISAK_INSTALL_PATH or
+    // falls back to the working directory, caching whichever it got on the
+    // first call. Left alone, that yields "/\zone\(null)\code_post_gfx.ff":
+    // no install path, and no language because localization.txt was never
+    // found.
+    //
+    // The iOS app chdir()s into the game folder and relies on the fallback.
+    // Do that too, and set the variable as well, so a later caller cannot
+    // depend on the working directory having survived.
+    const char *gameData = KisakAndroid_GameDataPath();
+    if (!gameData || !*gameData || chdir(gameData) != 0)
+    {
+        char message[512];
+        std::snprintf(message, sizeof(message),
+            "Could not enter the game data folder:\n%s\n\n%s",
+            (gameData && *gameData) ? gameData : "(no path was set)",
+            (gameData && *gameData) ? std::strerror(errno) : "The launcher did not report one.");
+        KisakAndroid_ShowFatalError(message);
+        g_engineRunning = false;
+        return 1;
+    }
+    setenv("KISAK_INSTALL_PATH", gameData, 1);
+
+    // Win_InitLocalization does not fail loudly: when it cannot open this it
+    // asserts, which is compiled out of a release build, and carries on with
+    // a null language. The first symptom is the zone loader reporting
+    // "Could not find zone '\zone\(null)\code_post_gfx.ff'", which names
+    // neither the real problem nor the file. Check it here instead.
+    if (std::FILE *const localization = std::fopen("localization.txt", "rb"))
+    {
+        std::fclose(localization);
+    }
+    else
+    {
+        char message[512];
+        std::snprintf(message, sizeof(message),
+            "localization.txt is missing from the game data:\n%s\n\n"
+            "It names the language, and every zone path is built from it. "
+            "Import the game folder again from the launcher.",
+            gameData);
+        KisakAndroid_ShowFatalError(message);
+        g_engineRunning = false;
+        return 1;
+    }
+
     kisak::perf::Director().PlaceThread(kisak::perf::ThreadRole::Render);
 
     Sys_InitializeCriticalSections();
