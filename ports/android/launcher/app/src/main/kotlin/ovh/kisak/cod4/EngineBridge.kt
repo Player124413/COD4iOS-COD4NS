@@ -63,6 +63,13 @@ object EngineBridge {
     external fun nativeSetStorageRoots(gameData: String, internalCache: String, externalCache: String)
 
     /**
+     * Names the file the engine writes its log to, and installs the native
+     * crash handler. Call it before anything else: a crash in library load or
+     * renderer start-up is exactly the one worth having a backtrace for.
+     */
+    external fun nativeSetLogPath(path: String)
+
+    /**
      * Starts the engine thread. Returns false if the engine refused to start,
      * which in practice means the game data is missing or unreadable.
      */

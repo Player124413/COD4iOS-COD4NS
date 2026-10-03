@@ -48,6 +48,7 @@ class LauncherActivity : AppCompatActivity() {
     private lateinit var importButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var progressText: TextView
+    private lateinit var crashNotice: TextView
 
     @Volatile
     private var cancelImport = false
@@ -76,6 +77,12 @@ class LauncherActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshStatus()
+        thread {
+            val crashed = GameLog.lastRunCrashed(this)
+            runOnUiThread {
+                crashNotice.visibility = if (crashed) View.VISIBLE else View.GONE
+            }
+        }
     }
 
     // --- layout --------------------------------------------------------------
@@ -205,6 +212,25 @@ class LauncherActivity : AppCompatActivity() {
             isChecked = settings.showPerfOverlay
             setOnCheckedChangeListener { _, checked -> settings.showPerfOverlay = checked }
         })
+
+        content.addView(divider())
+
+        crashNotice = TextView(this).apply {
+            setText(R.string.logs_crashed)
+            textSize = 13f
+            setTextColor(0xFFD08A6A.toInt())
+            setPadding(0, 0, 0, 12)
+            visibility = View.GONE
+        }
+        content.addView(crashNotice)
+
+        content.addView(Button(this).apply {
+            setText(R.string.logs)
+            setOnClickListener {
+                startActivity(Intent(this@LauncherActivity, LogActivity::class.java))
+            }
+        })
+        content.addView(hint(R.string.logs_hint))
 
         content.addView(divider())
 

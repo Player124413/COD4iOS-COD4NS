@@ -24,6 +24,7 @@
 #include "touch_controls.h"
 #include "../gfx/gpu_backend.h"
 #include "../perf/perf_director.h"
+#include "../platform/android_log.h"
 #include "../platform/android_platform.h"
 
 #include <atomic>
@@ -305,6 +306,18 @@ JNI_METHOD(void, nativeSetStorageRoots)
     // directory set afterwards would only take effect from the second launch.
     kisak::vk::SetCacheDirectory(internal.c_str());
     LOGI("game data: %s", data.c_str());
+}
+
+JNI_METHOD(void, nativeSetLogPath)(JNIEnv *env, jobject, jstring path)
+{
+    const std::string file = ToUtf8(env, path);
+    KisakAndroid_LogSetPath(file.c_str());
+    KisakAndroid_LogOpen();
+    // Installed here rather than with the engine thread so that a crash
+    // during library load, surface creation or renderer start-up - all of
+    // which happen before KisakAndroid_RunEngine - is still recorded.
+    KisakAndroid_InstallCrashHandler();
+    LOGI("log file: %s", file.c_str());
 }
 
 JNI_METHOD(void, nativeSurfaceCreated)(JNIEnv *env, jobject, jobject surface)

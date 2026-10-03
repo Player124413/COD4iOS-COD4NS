@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The only thing the app ever shares. Scoped to the log directory alone:
+     the same internal storage holds the player's imported game data, and a
+     provider that exposed all of it would hand any app that asks a path into
+     tens of gigabytes of retail content. -->
+<paths>
+    <files-path name="logs" path="logs/" />
+</paths>

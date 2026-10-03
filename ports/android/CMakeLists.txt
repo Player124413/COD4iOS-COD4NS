@@ -252,6 +252,7 @@ set(KISAK_ANDROID_PORT_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_critical_sections.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_virtual_memory.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_storage.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/platform/android_log.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_engine_mode.cpp"
     # Shared with the iOS port, unchanged.
     "${IOS_DIR}/engine/controller_input.cpp"

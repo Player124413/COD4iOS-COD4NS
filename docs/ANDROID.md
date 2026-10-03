@@ -373,6 +373,65 @@ is where it is handled.
 
 ---
 
+## Logs and crashes
+
+The engine writes a plain text log to internal storage:
+
+```
+/data/data/ovh.kisak.cod4/files/logs/kisakcod-log.txt
+kisakcod-log-previous.txt
+```
+
+Internal storage rather than the shared volume, because the crash handler
+writes from a signal handler on a process that is already dying, and the
+emulated FUSE volume can block there. The launcher is the way in: **View log**
+offers Copy, Share and Save to Downloads, and switches between the last run
+and the one before it. The launcher also says so plainly on its front page
+when the previous run ended in a crash.
+
+The file is rotated when the engine starts, not when the launcher opens, so a
+log from a run that crashed is still there after the player goes back to look
+at it.
+
+### What a crash looks like
+
+`KisakAndroid_InstallCrashHandler` (`ports/android/platform/android_log.cpp`)
+catches `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGILL`, `SIGABRT`, `SIGTRAP` and
+`SIGSYS`, appends a report, and then re-raises the signal so the system still
+writes its own tombstone:
+
+```
+==== CRASH ====
+signal:  SIGSEGV (invalid memory access)
+code:    1
+address: 0x0
+thread:  kisak-engine tid 12345
+backtrace:
+  #00  0x7a1c3f4190  /data/app/.../libkisakcod_sp.so+0x1c4190
+  ...
+==== END CRASH ====
+```
+
+Writes go to a raw file descriptor, never stdio: a signal can arrive inside
+an `fwrite`, and re-entering stdio from the handler deadlocks on its lock. An
+alternate signal stack is installed **per thread**, because `sigaltstack` is
+per thread while `sigaction` is not, and the engine thread is both the one
+that recurses deeply enough to overflow and the one that would otherwise have
+nowhere to run the handler.
+
+### Turning a backtrace into source lines
+
+Release libraries are stripped, so `dli_sname` is usually empty and the useful
+part of each frame is the library plus the offset. Keep the unstripped
+`.so` that the build produces and feed it the offset:
+
+```
+llvm-symbolizer --obj=app/build/intermediates/cxx/Release/*/obj/arm64-v8a/libkisakcod_sp.so 0x1c4190
+```
+
+The offset in the log is already relative to the library's load address, so it
+goes in as printed - no arithmetic with `/proc/self/maps` needed.
+
 ## Licensing
 
 GPL v3, as the rest of the repository. No Activision assets or code are

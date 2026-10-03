@@ -23,6 +23,7 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -95,6 +96,12 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
             FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.END)
         )
         setContentView(root)
+
+        // Rotated here and nowhere else. The log from a run that crashed has
+        // to still be there when the player comes back to the launcher to
+        // read it, so only the start of the next run may move it aside.
+        GameLog.rotate(this)
+        EngineBridge.nativeSetLogPath(GameLog.current(this).absolutePath)
 
         EngineBridge.nativeSetStorageRoots(
             GameDataStore.root(this).absolutePath,
@@ -384,6 +391,15 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
                 .setTitle(R.string.fatal_title)
                 .setMessage(message)
                 .setCancelable(false)
+                // The dialog is the last thing the player sees of this run,
+                // and the engine thread is already gone. Offering the log
+                // here saves them finding their way back to the launcher to
+                // fetch something they have just been told they need.
+                .setNeutralButton(R.string.log_copy) { _, _ ->
+                    GameLog.copyToClipboard(this, GameLog.read(this))
+                    Toast.makeText(this, R.string.log_copied, Toast.LENGTH_LONG).show()
+                    finishAndRemoveTask()
+                }
                 .setPositiveButton(R.string.quit) { _, _ -> finishAndRemoveTask() }
                 .show()
         }

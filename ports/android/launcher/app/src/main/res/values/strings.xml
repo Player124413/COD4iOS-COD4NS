@@ -38,5 +38,22 @@
     <string name="restart_message">Switching to %1$s needs the app to restart, because the two modes are separate engine builds.</string>
     <string name="restart">Restart</string>
 
+    <string name="logs">View log</string>
+    <string name="logs_hint">A text file of everything the engine printed, including a backtrace if it crashed. Attach it to a bug report.</string>
+    <string name="logs_crashed">The last run ended in a crash. The log has the details.</string>
+    <string name="log_title">Engine log</string>
+    <string name="log_header">%1$s, written %2$s\n%3$s</string>
+    <string name="log_empty_header">Nothing has been logged yet.</string>
+    <string name="log_empty">The log is empty. Start the game once and it will be written here.</string>
+    <string name="log_loading">Reading\u2026</string>
+    <string name="log_copy">Copy</string>
+    <string name="log_share">Share</string>
+    <string name="log_save">Save to Downloads</string>
+    <string name="log_show_previous">Previous run</string>
+    <string name="log_show_latest">Latest run</string>
+    <string name="log_copied">Log copied to the clipboard.</string>
+    <string name="log_saved">Saved to %1$s</string>
+    <string name="log_save_failed">Could not write the file. There may be no free space.</string>
+
     <string name="licence_notice">KisakCOD is free software under the GNU GPL v3. It contains no Activision assets or code.</string>
 </resources>

@@ -43,6 +43,26 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".LogActivity"
+            android:exported="false"
+            android:label="@string/log_title"
+            android:parentActivityName=".LauncherActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density|uiMode" />
+
+        <!-- Internal storage is private to the app, so the log can only reach
+             a mail or chat app as a content:// URI with a one-off read grant.
+             Not exported, no permission: the grant travels with the intent. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.logs"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_paths" />
+        </provider>
+
         <!-- configChanges lists everything, so the activity is never
              recreated while the game is running. That is not an optimisation:
              the engine holds process-wide state that cannot be unwound and

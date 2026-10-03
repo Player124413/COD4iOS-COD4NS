@@ -37,6 +37,7 @@
 #include <ui/keycodes.h>
 
 #include "../perf/perf_director.h"
+#include "../platform/android_log.h"
 #include "../platform/android_platform.h"
 #include "controller_input.h"
 
@@ -78,8 +79,6 @@ std::atomic<int> g_softKeyboardVisible{0};
 float g_safeAreaHorizontal = 0.0f;
 float g_safeAreaVertical = 0.0f;
 
-std::FILE *g_logFile = nullptr;
-std::mutex g_logMutex;
 
 std::string ReadSystemProperty(const char *name, const char *fallback)
 {
@@ -130,17 +129,6 @@ void ReadCpuName(char *buffer, std::size_t size)
         std::snprintf(buffer, size, "%s", name.c_str());
 }
 
-void OpenLogFile()
-{
-    const char *root = KisakAndroid_PrivatePath();
-    if (!root || !*root)
-        return;
-    char path[1200];
-    std::snprintf(path, sizeof(path), "%s/kisakcod.log", root);
-    g_logFile = std::fopen(path, "w");
-    if (g_logFile)
-        setvbuf(g_logFile, nullptr, _IOLBF, 4096);
-}
 
 } // namespace
 
@@ -228,11 +216,7 @@ void __cdecl Sys_Print(const char *msg)
     // engine's colour codes stay visible; that is useful when reading a bug
     // report where the player pasted logcat rather than the log file.
     __android_log_write(ANDROID_LOG_INFO, KISAK_LOG_TAG, msg);
-    std::lock_guard<std::mutex> lock(g_logMutex);
-    if (!g_logFile)
-        OpenLogFile();
-    if (g_logFile)
-        std::fputs(msg, g_logFile);
+    KisakAndroid_LogWrite(msg);
 }
 
 void Sys_Error(const char *error, ...)
@@ -244,14 +228,8 @@ void Sys_Error(const char *error, ...)
     va_end(arguments);
 
     __android_log_write(ANDROID_LOG_FATAL, KISAK_LOG_TAG, message);
-    {
-        std::lock_guard<std::mutex> lock(g_logMutex);
-        if (g_logFile)
-        {
-            std::fprintf(g_logFile, "\nFATAL: %s\n", message);
-            std::fflush(g_logFile);
-        }
-    }
+    KisakAndroid_LogPrintf("\nFATAL: %s\n", message);
+    KisakAndroid_LogFlush();
     // Hand the text to the Java layer so the player sees a dialog instead of
     // the app vanishing. Implemented in ports/android/app/jni_bridge.cpp.
     KisakAndroid_ShowFatalError(message);
@@ -268,13 +246,8 @@ void __cdecl Sys_OutOfMemErrorInternal(const char *filename, int line)
 
 void __cdecl Sys_NormalExit()
 {
-    std::lock_guard<std::mutex> lock(g_logMutex);
-    if (g_logFile)
-    {
-        std::fflush(g_logFile);
-        std::fclose(g_logFile);
-        g_logFile = nullptr;
-    }
+    KisakAndroid_LogWrite("\nEngine shut down normally.\n");
+    KisakAndroid_LogFlush();
 }
 
 void __cdecl Sys_Quit()
@@ -697,6 +670,12 @@ int KisakAndroid_RunEngine(const char *commandLine)
     if (g_engineRunning.exchange(true))
         return 0;
 
+    // Both are idempotent: the launcher already did this through
+    // nativeSetLogPath before the surface existed. Repeating it here covers
+    // a host or test run that starts the engine without the Java layer.
+    KisakAndroid_LogOpen();
+    KisakAndroid_InstallCrashHandler();
+
     // Before anything that touches a file, and before anything that could
     // call Sys_DefaultInstallPath().
     //
@@ -721,11 +700,15 @@ int KisakAndroid_RunEngine(const char *commandLine)
             "Could not enter the game data folder:\n%s\n\n%s",
             (gameData && *gameData) ? gameData : "(no path was set)",
             (gameData && *gameData) ? std::strerror(errno) : "The launcher did not report one.");
+        KisakAndroid_LogPrintf("FATAL: %s\n", message);
+        KisakAndroid_LogFlush();
         KisakAndroid_ShowFatalError(message);
         g_engineRunning = false;
         return 1;
     }
     setenv("KISAK_INSTALL_PATH", gameData, 1);
+    KisakAndroid_LogPrintf("install path: %s\ncommand line: %s\n\n",
+        gameData, commandLine ? commandLine : "");
 
     // Win_InitLocalization does not fail loudly: when it cannot open this it
     // asserts, which is compiled out of a release build, and carries on with
@@ -744,6 +727,8 @@ int KisakAndroid_RunEngine(const char *commandLine)
             "It names the language, and every zone path is built from it. "
             "Import the game folder again from the launcher.",
             gameData);
+        KisakAndroid_LogPrintf("FATAL: %s\n", message);
+        KisakAndroid_LogFlush();
         KisakAndroid_ShowFatalError(message);
         g_engineRunning = false;
         return 1;
