@@ -2,7 +2,7 @@
 
 #include <qcommon/thread_context.h>
 #ifdef _WIN32
-#include <Windows.h>
+#include <windows.h>
 // Preserve legacy transitive includes for the existing Windows targets.
 #include <gfx_d3d/rb_backend.h>
 #endif

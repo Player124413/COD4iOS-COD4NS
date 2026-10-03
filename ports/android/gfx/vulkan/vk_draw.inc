@@ -180,7 +180,7 @@ VkImageView GetTargetView(Texture *texture, uint32_t face, uint32_t level)
 {
     if (!texture)
         return VK_NULL_HANDLE;
-    if (face == 0 && level == 0 && texture->desc.kind == TextureKind::Flat)
+    if (face == 0 && level == 0 && texture->desc.kind == TextureKind::Texture2D)
         return texture->view;
 
     const uint32_t key = (face << 16) | level;

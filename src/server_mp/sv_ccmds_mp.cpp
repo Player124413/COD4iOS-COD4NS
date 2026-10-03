@@ -20,7 +20,7 @@
 
 #ifdef WIN32
 #include <win32/win_steam.h>
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__ANDROID__)
 #include "../../ports/ios/compat/steam_apple.h"
 #else
 #error Steam auth for Arch(Server)

@@ -17,7 +17,7 @@
 #ifdef WIN32
 #include <win32/win_steam.h>
 #include <universal/base64.h>
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__ANDROID__)
 #include "../../ports/ios/compat/steam_apple.h"
 #include <universal/base64.h>
 #else

@@ -1,6 +1,6 @@
 #include <universal/q_shared.h>
 #include "rb_backend.h"
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include "../../ports/ios/engine/controller_icons.h"
 #endif
 #include <qcommon/mem_track.h>

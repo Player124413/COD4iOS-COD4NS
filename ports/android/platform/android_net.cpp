@@ -23,6 +23,9 @@
 #include <qcommon/qcommon.h>
 #include <qcommon/net_chan_mp.h>
 
+#include <chrono>
+#include <thread>
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -309,8 +312,10 @@ bool Sys_IsLANAddress_IgnoreSubnet(netadr_t adr)
 
 void NET_Sleep(int msec)
 {
+    // Not Sys_Sleep(): threads.h only declares it under KISAK_SP, and this
+    // translation unit is built for MP only.
     if (msec > 0)
-        Sys_Sleep(static_cast<unsigned int>(msec));
+        std::this_thread::sleep_for(std::chrono::milliseconds(msec));
 }
 
 // ---------------------------------------------------------------------------

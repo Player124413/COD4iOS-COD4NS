@@ -173,6 +173,7 @@ struct __declspec(align(8)) SysInfo // sizeof=0x260
 #if defined(_WIN32)
 extern _RTL_CRITICAL_SECTION s_criticalSections[];
 #else
+#include <mutex>
 extern std::mutex s_criticalSections[];
 #endif
 

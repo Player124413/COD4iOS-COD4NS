@@ -18,13 +18,30 @@
 
 #include <universal/q_shared.h>
 #include <qcommon/qcommon.h>
+#include <qcommon/cmd.h>
 #include <qcommon/threads.h>
+#include <universal/com_memory.h>
+#include <win32/win_local.h>
+#include <win32/win_localize.h>
+#include <win32/win_input.h>
 #include <universal/profile.h>
+#include <universal/q_parse.h>
 #include <universal/timing.h>
+
+#include <client/client.h> // branches internally on SP/MP
+#ifdef KISAK_MP
+#include <client_mp/client_mp.h>
+#else
+#include <client/cl_input.h>
+#endif
+#include <ui/keycodes.h>
 
 #include "../perf/perf_director.h"
 #include "../platform/android_platform.h"
 #include "controller_input.h"
+
+// --- implemented in ports/android/engine/android_input.cpp ---
+void KisakAndroid_ControllerFrame();
 
 #include <android/log.h>
 
@@ -130,9 +147,20 @@ void OpenLogFile()
 // ---------------------------------------------------------------------------
 // Events queued from the UI thread into the engine's event ring.
 
-sysEvent_t eventQue[256];
+sysEvent_t eventQue[MAX_QUED_EVENTS];
 int eventHead;
 int eventTail;
+
+// Engine globals that live in src/win32/win_main.cpp on Windows. That file is
+// not in the Android source list (WIN32_SRC is excluded wholesale), so the
+// port owns them, exactly as ports/ios/engine/apple_sys.cpp does.
+char sys_cmdline[1024];
+SysInfo sys_info;
+int client_state;
+HWND g_splashWnd;
+WinVars_t g_wv;
+
+cmd_function_s Sys_In_Restart_f_VAR;
 
 namespace {
 std::mutex g_eventMutex;
@@ -148,7 +176,7 @@ void __cdecl Sys_QueEvent(uint32_t time, sysEventType_t type, int value, int val
         // oldest entry keeps input responsive once it recovers, and freeing
         // the payload avoids leaking a buffer per dropped event.
         if (event->evPtr)
-            Z_Free(event->evPtr, 0);
+            Z_Free((char *)event->evPtr, 10);
         ++eventTail;
     }
     ++eventHead;
@@ -686,7 +714,9 @@ int KisakAndroid_RunEngine(const char *commandLine)
     Com_InitParse();
     Dvar_Init();
     InitTiming();
-    Sys_FindInfo_Android();
+    // No Sys_FindInfo() equivalent here, unlike iOS: sys_info is filled by
+    // Sys_Init() (reached via Com_Init below) because the GPU description
+    // depends on the quality tier, which BootstrapDeviceProfile sets next.
 
     // Before Com_Init, because Sys_Init - which Com_Init calls - reports the
     // quality tier and reads the CPU topology. The GPU is still unknown at

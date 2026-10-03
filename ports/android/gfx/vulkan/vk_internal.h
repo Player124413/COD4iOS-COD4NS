@@ -6,6 +6,9 @@
 // translation unit where BOOL, near and far are macros.
 
 #include "../gpu_backend.h"
+// Shader reflection: ShaderSemantic, ShaderSampler and TranslatedShader are
+// declared by the translator, and Shader below stores them.
+#include "../dx9_glsl_translator.h"
 
 #include <vulkan/vulkan.h>
 

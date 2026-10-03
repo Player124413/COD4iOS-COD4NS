@@ -14,7 +14,7 @@
 
 #ifdef WIN32
 #include <win32/win_steam.h>
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__ANDROID__)
 #include "../../ports/ios/compat/steam_apple.h"
 #else
 #error Steam Auth for Arch
@@ -395,7 +395,7 @@ void __cdecl CL_Connect_f()
 // This is called by the Client to see if the Auth is even valid before sending to the Server.
 bool __cdecl CL_CDKeyValidate(netadr_t addr)
 {
-#if defined(WIN32) || defined(__APPLE__)
+#if defined(WIN32) || defined(__APPLE__) || defined(__ANDROID__)
     return Steam_UpdateClientAuthTicket(addr);
 #else
 #error Steam Auth for Arch

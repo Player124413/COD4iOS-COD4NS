@@ -47,6 +47,10 @@
 #include "../../ports/ios/compat/steam_apple.h"
 #include "../../ports/ios/platform/apple_download.h"
 #include <universal/base64.h>
+#elif defined(__ANDROID__)
+#include "../../ports/ios/compat/steam_apple.h"
+#include "../../ports/android/platform/android_download.h"
+#include <universal/base64.h>
 #else
 #error Steam Auth for Arch
 #endif

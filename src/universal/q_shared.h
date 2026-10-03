@@ -93,6 +93,34 @@ static ID_INLINE int BigLong(int l) { return LongSwap(l); }
 
 #define	PATH_SEP '\\'
 
+#elif defined(__ANDROID__)
+
+#define	MAC_STATIC
+
+#ifdef NDEBUG
+#define	CPUSTRING	"android-arm64"
+#else
+#define	CPUSTRING	"android-arm64-debug"
+#endif
+
+#define	PITCH				0		// up / down
+#define	YAW					1		// left / right
+#define	ROLL				2		// fall over
+
+#define ID_INLINE inline
+
+int __cdecl ShortSwap(int16_t l);
+int __cdecl LongSwap(int l);
+
+// arm64 is little-endian, matching the x86 byte order of the game data.
+static ID_INLINE short BigShort(short l) { return ShortSwap(l); }
+#define LittleShort
+static ID_INLINE int BigLong(int l) { return LongSwap(l); }
+#define LittleLong
+#define LittleFloat
+
+#define	PATH_SEP '/'
+
 #elif defined(__APPLE__)
 
 #define	MAC_STATIC

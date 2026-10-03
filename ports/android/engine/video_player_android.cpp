@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <string>
 #include <vector>
 
@@ -110,7 +111,11 @@ void ApplyOutputFormat(KisakVideoPlayer *player, AMediaFormat *format)
         player->stride = value;
     else
         player->stride = player->width;
-    if (AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_SLICE_HEIGHT, &value) && value > 0)
+    // AMEDIAFORMAT_KEY_SLICE_HEIGHT is __INTRODUCED_IN(28) and minSdk is 26.
+    // The constant is only ever the string below, and AMediaFormat_getInt32
+    // looks the key up by name, so using it directly costs nothing and works
+    // on every API level - the same thing the crop keys do just below.
+    if (AMediaFormat_getInt32(format, "slice-height", &value) && value > 0)
         player->sliceHeight = value;
     else
         player->sliceHeight = player->height;

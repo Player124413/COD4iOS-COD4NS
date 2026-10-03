@@ -192,6 +192,18 @@
         #endif
       #endif
 
+  #elif defined(__ANDROID__)
+
+      // Android/arm64. Bink has no runtime here - r_cinematic.cpp is not
+      // compiled and video goes through MediaCodec - so this branch exists
+      // only so the headers parse, like the Apple branch above.
+      #define __RADLINUX__
+      #define __RADARM__
+      #define __RADLITTLEENDIAN__
+      #define __RAD32__
+      #define RADINLINE inline
+      #define RADRESTRICT __restrict
+
   #elif defined(linux)
 
       #define __RADLINUX__

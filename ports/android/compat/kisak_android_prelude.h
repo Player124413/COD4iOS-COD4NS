@@ -52,8 +52,13 @@ typedef struct _OSVERSIONINFOA {
     CHAR szCSDVersion[128];
 } OSVERSIONINFOA, OSVERSIONINFO;
 
-// Apple's FILE is struct __sFILE; bionic's is already struct _iobuf-compatible
-// through its own typedef, so nothing to remap there.
+// MSVC's FILE is struct _iobuf and the decompiled headers spell that name
+// directly (src/server/server.h and friends). The iOS prelude maps it onto
+// Apple's internal tag with a macro; a typedef is used here instead so the
+// port does not depend on what bionic happens to call its FILE object. The
+// engine only ever uses it as a type, never as "struct _iobuf".
+typedef FILE _iobuf;
+
 #define _isnan(x) isnan(x)
 #define _finite(x) isfinite(x)
 #define _vsnprintf vsnprintf
@@ -213,7 +218,7 @@ inline BOOL QueryPerformanceCounter(LARGE_INTEGER *count)
 
 #ifdef __cplusplus
 // Shared with the iOS port: maps the engine's Win32 file calls onto POSIX.
-#include "kisak_win32_file_api.h"
+#include "../../ios/compat/kisak_win32_file_api.h"
 #endif
 
 #endif // __ANDROID__

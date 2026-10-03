@@ -191,6 +191,12 @@ add_library(kisakcod_android_gfx STATIC
 )
 target_compile_features(kisakcod_android_gfx PUBLIC cxx_std_17)
 target_include_directories(kisakcod_android_gfx PRIVATE "${SHADERC_INCLUDE}")
+# Without this <vulkan/vulkan.h> omits VkAndroidSurfaceCreateInfoKHR,
+# vkCreateAndroidSurfaceKHR and VK_KHR_ANDROID_SURFACE_EXTENSION_NAME. It has
+# to be a compile definition rather than a #define in one header: both
+# vk_internal.h and pipeline_cache.h include vulkan.h, and whichever lands
+# first wins the include guard.
+target_compile_definitions(kisakcod_android_gfx PRIVATE VK_USE_PLATFORM_ANDROID_KHR)
 target_link_libraries(kisakcod_android_gfx PUBLIC Vulkan::Vulkan android log PRIVATE "${SHADERC_LIB}")
 
 # --- Video decoding ----------------------------------------------------------
