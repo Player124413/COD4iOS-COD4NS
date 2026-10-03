@@ -2405,7 +2405,9 @@ void Com_CheckError()
     if (v0)
     {
         void * value = Sys_GetValue(2);
-        longjmp((int*)value, -1);
+        // Sys_SetValue(2, ...) stores &g_com_error[threadContext], a jmp_buf*.
+        // Never spell the element type out: it is int on Apple but long on bionic.
+        longjmp(*static_cast<jmp_buf *>(value), -1);
     }
 }
 

@@ -142,7 +142,11 @@ uint32_t __cdecl Sys_GetCurrentThreadId()
 #ifdef _WIN32
     return GetCurrentThreadId();
 #else
+#ifdef __ANDROID__
+    return static_cast<uint32_t>(pthread_gettid_np(pthread_self()));
+#else
     return pthread_mach_thread_np(pthread_self());
+#endif
 #endif
 }
 
@@ -228,7 +232,11 @@ void __cdecl Sys_CreateThread(void(__cdecl* function)(uint32_t), ThreadContext_t
     {
         pthread_detach(thread);
         threadHandle[threadContext] = reinterpret_cast<HANDLE>(thread);
+#ifdef __ANDROID__
+        threadId[threadContext] = static_cast<uint32_t>(pthread_gettid_np(thread));
+#else
         threadId[threadContext] = pthread_mach_thread_np(thread);
+#endif
     }
     pthread_attr_destroy(&attributes);
 }
@@ -270,8 +278,16 @@ void __cdecl SetThreadName(uint32_t threadId, const char* threadName)
 void __cdecl SetThreadName(uint32_t threadId, const char* threadName)
 {
     // A pthread can only name itself.
-    if (threadId == 0xFFFFFFFF || threadId == Sys_GetCurrentThreadId())
-        pthread_setname_np(threadName);
+    if (threadId != 0xFFFFFFFF && threadId != Sys_GetCurrentThreadId())
+        return;
+#ifdef __ANDROID__
+    // bionic takes the thread explicitly and hard-caps the name at 15 chars.
+    char shortName[16];
+    I_strncpyz(shortName, threadName, sizeof(shortName));
+    pthread_setname_np(pthread_self(), shortName);
+#else
+    pthread_setname_np(threadName);
+#endif
 }
 #endif
 
