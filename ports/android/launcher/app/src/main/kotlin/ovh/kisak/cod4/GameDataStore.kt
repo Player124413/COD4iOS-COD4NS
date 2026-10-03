@@ -36,6 +36,8 @@ object GameDataStore {
         val missing: List<String>,
         val language: String?,
         val totalBytes: Long,
+        /** What was actually found, so an incomplete import can be diagnosed. */
+        val detail: String,
     )
 
     private val importing = AtomicBoolean(false)
@@ -47,8 +49,12 @@ object GameDataStore {
     fun zoneDir(context: Context): File = File(root(context), "zone")
 
     /**
-     * Checks what is present. Deliberately cheap - it runs on every launch, so
-     * it counts files and sizes rather than opening archives.
+     * Checks what is present, and repairs localization.txt if it has to.
+     *
+     * Deliberately cheap - it runs on every launch, so it counts files and
+     * sizes rather than opening archives. The one write it can make happens
+     * at most once, when the declared language and the zone directory do not
+     * already agree.
      */
     fun status(context: Context): Status {
         val root = root(context)
@@ -62,38 +68,107 @@ object GameDataStore {
         }
         iwds.forEach { total += it.length() }
 
-        val localization = File(root, "localization.txt")
-        val language = if (localization.isFile) {
-            // The file is a single token, e.g. "english". Anything longer is
-            // a stray file rather than the real one.
-            localization.readText().trim().lowercase().takeIf { it.isNotEmpty() && it.length < 32 }
-        } else {
-            null
+        // Every zone subdirectory that holds fastfiles. DB_BuildOSPath builds
+        // "zone/<language>/<name>.ff", so a language is only usable if its
+        // directory is the one with the files in it.
+        val byLanguage = fastfilesByLanguage(zoneDir(context))
+        byLanguage.values.forEach { files -> files.forEach { total += it.length() } }
+
+        // Matched case-insensitively but carried through exactly as spelled on
+        // disk: internal storage is case-sensitive, so writing "english" when
+        // the directory is "English" would send DB_BuildOSPath somewhere that
+        // does not exist.
+        val declared = readDeclaredLanguage(root)
+        val language = byLanguage.keys.firstOrNull { it.equals(declared, ignoreCase = true) }
+            ?: byLanguage.entries.maxByOrNull { entry -> entry.value.size }?.key
+
+        if (byLanguage.isEmpty()) {
+            missing += if (declared != null) "zone/$declared/*.ff" else "zone/<language>/*.ff"
         }
-        if (language == null) {
+
+        // Win_InitLocalization opens localization.txt directly and asserts when
+        // it is absent, and DB_BuildOSPath takes the language from it, so it has
+        // to agree with the directory the fastfiles are in. Not every copy of
+        // the game carries the file, and some carry one naming a language that
+        // was never installed; in both cases the zone directory already says
+        // what the language is, so write it rather than refusing to start.
+        if (language != null && declared != language) {
+            if (writeDeclaredLanguage(root, language)) {
+                Log.i(TAG, "wrote localization.txt for '$language' (was ${declared ?: "absent"})")
+            } else {
+                missing += "localization.txt"
+            }
+        } else if (language == null && declared == null) {
             missing += "localization.txt"
         }
-
-        val zone = zoneDir(context)
-        val zoneLanguageDir = language?.let { File(zone, it) }
-        val fastfiles = zoneLanguageDir?.listFiles { file ->
-            file.extension.equals("ff", ignoreCase = true)
-        }.orEmpty()
-        if (fastfiles.isEmpty()) {
-            missing += if (language != null) "zone/$language/*.ff" else "zone/<language>/*.ff"
-        }
-        fastfiles.forEach { total += it.length() }
-
-        // Common fastfiles live alongside the language directory.
-        File(zone, "common").listFiles { file -> file.extension.equals("ff", ignoreCase = true) }
-            ?.forEach { total += it.length() }
 
         return Status(
             ready = missing.isEmpty() && total > 0,
             missing = missing,
             language = language,
             totalBytes = total,
+            detail = describe(iwds.size, byLanguage, declared),
         )
+    }
+
+    private fun describe(
+        iwdCount: Int,
+        byLanguage: Map<String, List<File>>,
+        declared: String?,
+    ): String = buildString {
+        append("main: ").append(iwdCount).append(" .iwd")
+        append(" · zone: ")
+        if (byLanguage.isEmpty()) {
+            append("no .ff found")
+        } else {
+            append(byLanguage.entries.joinToString(", ") { "${it.key} ${it.value.size} .ff" })
+        }
+        append(" · localization.txt: ").append(declared ?: "absent")
+    }
+
+    /**
+     * Fastfiles per zone subdirectory, skipping directories that have none.
+     * Keyed by the directory's real name, case and all.
+     */
+    private fun fastfilesByLanguage(zone: File): Map<String, List<File>> {
+        val result = linkedMapOf<String, List<File>>()
+        zone.listFiles()?.sortedBy { it.name }?.forEach { child ->
+            if (!child.isDirectory) return@forEach
+            val fastfiles = child.listFiles { file ->
+                file.isFile && file.extension.equals("ff", ignoreCase = true)
+            }.orEmpty().toList()
+            if (fastfiles.isNotEmpty()) {
+                result[child.name] = fastfiles
+            }
+        }
+        return result
+    }
+
+    /** The language token on the first line, as written, or null if absent. */
+    private fun readDeclaredLanguage(root: File): String? {
+        val file = File(root, "localization.txt")
+        if (!file.isFile) return null
+        return runCatching {
+            file.useLines { lines -> lines.firstOrNull() }
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && it.length < 32 && it.all { c -> c.isLetter() } }
+        }.getOrNull()
+    }
+
+    /**
+     * Writes a minimal localization.txt.
+     *
+     * Win_InitLocalization reads the language up to the first newline and
+     * points its string table at whatever follows, so the trailing newline is
+     * not optional: without it the table pointer is left null.
+     */
+    private fun writeDeclaredLanguage(root: File, language: String): Boolean = runCatching {
+        root.mkdirs()
+        File(root, "localization.txt").writeText("$language\n")
+        true
+    }.getOrElse {
+        Log.e(TAG, "could not write localization.txt", it)
+        false
     }
 
     /**
@@ -196,10 +271,21 @@ object GameDataStore {
 
     private data class Entry(val file: DocumentFile, val relativePath: String)
 
+    /**
+     * Case-insensitive child lookup.
+     *
+     * DocumentFile.findFile compares names exactly. A copy made on Windows and
+     * moved to a phone can easily arrive as "Main" or "Localization.txt", and
+     * on an sdcard formatted FAT the case is whatever the first writer chose.
+     * The engine's own file layer folds case, so the importer has to as well.
+     */
+    private fun DocumentFile.child(name: String): DocumentFile? =
+        listFiles().firstOrNull { it.name.equals(name, ignoreCase = true) }
+
     private fun locateInstallRoot(source: DocumentFile): DocumentFile? {
-        if (source.findFile("main")?.isDirectory == true) return source
+        if (source.child("main")?.isDirectory == true) return source
         return source.listFiles()
-            .firstOrNull { it.isDirectory && it.findFile("main")?.isDirectory == true }
+            .firstOrNull { it.isDirectory && it.child("main")?.isDirectory == true }
     }
 
     /**
@@ -210,11 +296,11 @@ object GameDataStore {
     private fun collectWantedFiles(root: DocumentFile): List<Entry> {
         val result = mutableListOf<Entry>()
 
-        root.findFile("localization.txt")?.takeIf { it.isFile }?.let {
+        root.child("localization.txt")?.takeIf { it.isFile }?.let {
             result += Entry(it, "localization.txt")
         }
 
-        root.findFile("main")?.takeIf { it.isDirectory }?.let { main ->
+        root.child("main")?.takeIf { it.isDirectory }?.let { main ->
             main.listFiles().forEach { file ->
                 val name = file.name ?: return@forEach
                 if (file.isFile && (name.endsWith(".iwd", true) || name.endsWith(".cfg", true))) {
@@ -233,20 +319,26 @@ object GameDataStore {
             }
         }
 
-        root.findFile("zone")?.takeIf { it.isDirectory }?.let { zone ->
+        root.child("zone")?.takeIf { it.isDirectory }?.let { zone ->
+            // Fastfiles sitting straight in zone/ rather than in a language
+            // directory. DB_BuildOSPath only ever looks in zone/<language>/,
+            // so they have to be filed under one. English is the assumption;
+            // status() then rewrites localization.txt to whichever directory
+            // actually ended up with the files, so a wrong guess corrects
+            // itself rather than leaving the two disagreeing.
+            zone.listFiles()
+                .filter { it.isFile && it.name?.endsWith(".ff", true) == true }
+                .forEach { file -> result += Entry(file, "zone/english/${file.name}") }
+            // Language directories, and anything nested inside them: some
+            // repacks keep the map fastfiles one level further down.
             zone.listFiles().filter { it.isDirectory }.forEach { languageDir ->
                 val language = languageDir.name ?: return@forEach
-                languageDir.listFiles().forEach { file ->
-                    val name = file.name ?: return@forEach
-                    if (file.isFile && name.endsWith(".ff", true)) {
-                        result += Entry(file, "zone/$language/$name")
-                    }
-                }
+                collectFastfiles(languageDir, "zone/$language", result)
             }
         }
 
         // Converted cutscenes, if the player ran the conversion script.
-        root.findFile("video")?.takeIf { it.isDirectory }?.let { video ->
+        root.child("video")?.takeIf { it.isDirectory }?.let { video ->
             video.listFiles().forEach { file ->
                 val name = file.name ?: return@forEach
                 if (file.isFile && (name.endsWith(".mp4", true) || name.endsWith(".mp3", true))) {
@@ -256,6 +348,17 @@ object GameDataStore {
         }
 
         return result
+    }
+
+    /** Collects .ff files at any depth, flattened into the language directory. */
+    private fun collectFastfiles(directory: DocumentFile, prefix: String, into: MutableList<Entry>) {
+        directory.listFiles().forEach { file ->
+            val name = file.name ?: return@forEach
+            when {
+                file.isFile && name.endsWith(".ff", true) -> into += Entry(file, "$prefix/$name")
+                file.isDirectory -> collectFastfiles(file, prefix, into)
+            }
+        }
     }
 
     /** Frees the imported data. Offered in settings, because it is tens of gigabytes. */

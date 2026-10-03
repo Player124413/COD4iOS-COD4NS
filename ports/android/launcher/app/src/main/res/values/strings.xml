@@ -5,7 +5,7 @@
     <string name="data_notice">No game content is included with this app and none is downloaded. Point the launcher at a copy of the Call of Duty 4 PC installation you already own; the files it needs are copied into app storage.</string>
 
     <string name="data_ready">Game data ready — %1$s, %2$s</string>
-    <string name="data_missing">Game data incomplete. Still missing:%1$s</string>
+    <string name="data_missing">Game data incomplete. Still missing:%1$s\n\nFound — %2$s</string>
 
     <string name="choose_folder">Choose game folder…</string>
     <string name="reimport_folder">Import again…</string>

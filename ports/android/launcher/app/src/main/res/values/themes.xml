@@ -2,8 +2,11 @@
 <resources>
     <!-- The launcher follows the system theme. The game window is a plain
          black full-screen surface: anything else would be visible for a frame
-         during the transition. -->
-    <style name="Theme.KisakCOD" parent="Theme.Material3.DayNight">
+         during the transition.
+
+         NoActionBar: the launcher draws its own title, and an action bar
+         showing the same app name directly above it reads as a duplicate. -->
+    <style name="Theme.KisakCOD" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:statusBarColor">?attr/colorSurface</item>
     </style>
 

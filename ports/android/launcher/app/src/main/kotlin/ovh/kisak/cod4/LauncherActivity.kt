@@ -18,6 +18,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import kotlin.concurrent.thread
 
 /**
@@ -227,7 +229,22 @@ class LauncherActivity : AppCompatActivity() {
             setPadding(0, 32, 0, 0)
         })
 
-        return ScrollView(this).apply { addView(content) }
+        return ScrollView(this).apply {
+            addView(content)
+            // targetSdk 35 means Android 15 lays the window out edge to edge
+            // and no longer insets it for us, so without this the title sits
+            // under the status bar and the last button under the navigation
+            // bar. clipToPadding keeps the scrolled content from drawing into
+            // those areas on the way past.
+            clipToPadding = true
+            ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
+                val bars = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+                )
+                view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                windowInsets
+            }
+        }
     }
 
     private fun sectionLabel(resId: Int) = TextView(this).apply {
@@ -265,7 +282,11 @@ class LauncherActivity : AppCompatActivity() {
                 Formatter.formatShortFileSize(this, status.totalBytes),
             )
         } else {
-            getString(R.string.data_missing, status.missing.joinToString("\n  \u2022 ", "\n  \u2022 "))
+            getString(
+                R.string.data_missing,
+                status.missing.joinToString("\n  \u2022 ", "\n  \u2022 "),
+                status.detail,
+            )
         }
 
         importButton.setText(if (status.ready) R.string.reimport_folder else R.string.choose_folder)
