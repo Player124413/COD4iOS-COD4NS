@@ -70,9 +70,9 @@ void __cdecl UI_DrawHandlePic(
         t0 = 1.0;
         t1 = 0.0;
     }
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     // PC HUD/menu overlays authored for the complete 4:3 canvas must also
-    // cover the side regions on an iPhone. Keep ordinary widgets unstretched.
+    // cover the side regions on a phone. Keep ordinary widgets unstretched.
     float px = x, py = y, pw = w, ph = h;
     ScrPlace_ApplyRect(scrPlace, &px, &py, &pw, &ph, horzAlign, vertAlign);
     const float canvasWidth = 640.0f * scrPlace->scaleVirtualToReal[0];
@@ -142,7 +142,7 @@ void __cdecl UI_FillRect(
     int vertAlign,
     const float *color)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     float px=x,py=y,pw=width,ph=height;
     ScrPlace_ApplyRect(scrPlace,&px,&py,&pw,&ph,horzAlign,vertAlign);
     if (ExpandCenteredScreenOverlay(px,py,pw,ph,scrPlace->realViewportSize[0],

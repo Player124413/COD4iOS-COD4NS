@@ -1638,8 +1638,12 @@ static bool SND_DecodeLoadedAdpcm(MssSoundCOD4 *mssSound, const void *srcData, s
 void __cdecl SND_SetData(MssSoundCOD4 *mssSound, void *srcData)
 {
     std::vector<int16_t> decodedPcm;
+    // Set while the bytes behind srcData are still compressed, i.e. not the
+    // 16-bit PCM frames the resampler below assumes.
+    bool compressed = false;
     if (mssSound->info.format == 0x11 || mssSound->info.format == 0x02)
     {
+        compressed = true;
         const int storedFormat = mssSound->info.format;
         const bool decoded = SND_DecodeLoadedAdpcm(mssSound, srcData, decodedPcm);
         static int adpcmReports = 0;
@@ -1651,45 +1655,81 @@ void __cdecl SND_SetData(MssSoundCOD4 *mssSound, void *srcData)
                        mssSound->info.samples);
         }
         if (decoded)
+        {
             srcData = decodedPcm.data();
+            compressed = false;
+        }
     }
-    // dr_wav (see SND_LoadFromBuffer, snd_driver_load_obj.cpp) always decodes to 16-bit PCM
-    // for us, so unlike the Miles branch above there's no ADPCM format to worry about here.
-    if (mssSound->info.rate > g_snd.playback_rate)
+    const uint32_t channels = static_cast<uint32_t>(mssSound->info.channels);
+    const uint32_t bytesPerFrame = channels * static_cast<uint32_t>(sizeof(int16_t));
+
+    // Resampling reads the source as 16-bit frames, so it is only correct
+    // once the data really is 16-bit PCM. Miles guarded the same branch with
+    // "format != 17" (snd_driver.cpp); the decode above normally removes the
+    // case, but a decode that failed must not fall through into a reader that
+    // would treat four bytes of compressed data as two frames.
+    bool resampled = false;
+    if (!compressed && channels > 0 && mssSound->info.bits == 16 &&
+        mssSound->info.rate > g_snd.playback_rate)
     {
         // Resample down to g_snd.playback_rate via simple decimation (nearest-frame
         // resample), matching the halving loop in the Miles branch above. A real
         // low-pass-filtered resample would sound better, but this matches WORK.md Phase 3's
         // stated scope - revisit if downsampled loaded sounds turn out to sound too aliased.
+        //
+        // info.samples comes straight out of the fastfile and is not
+        // guaranteed to agree with data_len. Reading frames that were never
+        // loaded walks off the end of the zone block, which is how this
+        // crashed on a phone; believe the byte count, not the frame count.
         uint32_t srcFrameCount = mssSound->info.samples;
-        uint32_t channels = mssSound->info.channels;
+        const uint32_t availableFrames = mssSound->info.data_len / bytesPerFrame;
+        if (srcFrameCount > availableFrames)
+        {
+            Com_PrintWarning(CON_CHANNEL_ERROR,
+                             "SND_SetData: %u frames claimed, %u present in %u bytes "
+                             "(%d ch, %u Hz, format %d, bits %d); clamping\n",
+                             srcFrameCount, availableFrames, mssSound->info.data_len,
+                             mssSound->info.channels, mssSound->info.rate,
+                             mssSound->info.format, mssSound->info.bits);
+            srcFrameCount = availableFrames;
+        }
+
         uint32_t rate = mssSound->info.rate;
         uint32_t frameCount = srcFrameCount;
-
-        while (rate > g_snd.playback_rate)
+        while (rate > g_snd.playback_rate && frameCount > 0)
         {
             rate /= 2;
             frameCount /= 2;
         }
 
-        uint32_t newDataLen = frameCount * channels * sizeof(int16_t);
-        mssSound->data = MSS_Alloc(newDataLen, rate);
-
-        const int16_t *src16 = (const int16_t *)srcData;
-        int16_t *dst16 = (int16_t *)mssSound->data;
-        for (uint32_t i = 0; i < frameCount; ++i)
+        if (frameCount > 0)
         {
-            uint32_t srcFrame = (uint32_t)((uint64_t)i * srcFrameCount / frameCount);
-            for (uint32_t c = 0; c < channels; ++c)
-                dst16[i * channels + c] = src16[srcFrame * channels + c];
-        }
+            const uint32_t newDataLen = frameCount * bytesPerFrame;
+            mssSound->data = MSS_Alloc(newDataLen, rate);
 
-        mssSound->info.rate = rate;
-        mssSound->info.samples = frameCount;
-        mssSound->info.data_len = newDataLen;
+            const int16_t *src16 = (const int16_t *)srcData;
+            int16_t *dst16 = (int16_t *)mssSound->data;
+            for (uint32_t i = 0; i < frameCount; ++i)
+            {
+                uint32_t srcFrame = (uint32_t)((uint64_t)i * srcFrameCount / frameCount);
+                if (srcFrame >= srcFrameCount)
+                    srcFrame = srcFrameCount - 1;
+                for (uint32_t c = 0; c < channels; ++c)
+                    dst16[i * channels + c] = src16[srcFrame * channels + c];
+            }
+
+            mssSound->info.rate = rate;
+            mssSound->info.samples = frameCount;
+            mssSound->info.data_len = newDataLen;
+            resampled = true;
+        }
     }
-    else
+
+    if (!resampled)
     {
+        // Hand the bytes over as they are. A sound that could not be decoded
+        // or resampled still has to produce a valid buffer: the caller stores
+        // data_ptr straight into the asset and the mixer reads it later.
         mssSound->data = MSS_Alloc(mssSound->info.data_len, mssSound->info.rate);
         Com_Memcpy(mssSound->data, srcData, mssSound->info.data_len);
     }

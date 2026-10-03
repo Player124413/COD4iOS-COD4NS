@@ -27,7 +27,7 @@ bool Scr_IsIdentifier(char const* token)
     return 1;
 }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 // Canonical field ids the compiler assigned to level.console / level.xenon. Script strings are released after
 // compilation, so looking the names up again at level start can yield a different id than the bytecode uses.
 uint32_t g_scrCanonicalLevelConsole;
@@ -44,7 +44,7 @@ uint32_t SL_TransferToCanonicalString(uint32_t stringValue)
 
 	scrCompilePub.canonicalStrings[stringValue] = ++scrVarPub.canonicalStrCount;
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 	if (const char *canonicalName = SL_ConvertToString(stringValue))
 	{
 		if (!strcmp(canonicalName, "console"))
@@ -73,7 +73,7 @@ void SL_BeginLoadScripts()
 {
     memset((uint8_t*)scrCompilePub.canonicalStrings, 0, sizeof(scrCompilePub.canonicalStrings));
     scrVarPub.canonicalStrCount = 0;
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     g_scrCanonicalLevelConsole = 0;
     g_scrCanonicalLevelXenon = 0;
 #endif

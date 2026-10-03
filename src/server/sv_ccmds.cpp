@@ -18,7 +18,7 @@
 #include <universal/com_files.h>
 #include "sv_public.h"
 #include <cgame/cg_main.h>
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
 #include <win32/win_localize.h>
 #endif
 
@@ -362,8 +362,8 @@ void __cdecl ShowLoadErrorsSummary(const char *mapName, unsigned int count)
 
     if (showError)
     {
-#ifdef __APPLE__
-        // On iOS the summary page pauses the level behind a modal menu; the details
+#if defined(__APPLE__) || defined(__ANDROID__)
+        // On a phone the summary page pauses the level behind a modal menu; the details
         // are in the console log anyway, so only show it in developer mode.
         if (!com_developer || !com_developer->current.integer)
         {
@@ -1075,14 +1075,14 @@ void SV_Map_f()
         G_SetPendingLoadName(filename);
     }
     I_strlwr(mapname);
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     if (useFastFile->current.enabled)
     {
         char zonePath[MAX_OSPATH];
         Com_sprintf(zonePath, sizeof(zonePath), "zone/%s/%s.ff", Win_GetLanguage(), mapname);
         if (!FS_SV_FileExists(zonePath))
         {
-            Com_Error(ERR_DROP, "Campaign map is not installed: %s. Copy the campaign zone files to the app's Documents folder.", zonePath);
+            Com_Error(ERR_DROP, "Campaign map is not installed: %s. Import the full zone folder, campaign fastfiles included.", zonePath);
             return;
         }
     }

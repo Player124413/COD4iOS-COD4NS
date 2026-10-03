@@ -430,7 +430,7 @@ void __cdecl UI_DrawTextWithGlow(
     xScale = R_NormalizedTextScale(font, scale);
     yScale = xScale;
     ScrPlace_ApplyRect(scrPlace, &x, &y, &xScale, &yScale, horzAlign, vertAlign);
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     if (subtitle)
         y -= 24.0f * scrPlace->scaleVirtualToReal[1];
 #endif

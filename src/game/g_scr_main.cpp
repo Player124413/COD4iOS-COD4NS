@@ -603,7 +603,7 @@ void __cdecl Scr_LoadLevel()
 {
     unsigned __int16 v0; // r3
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__ANDROID__)
     // Level scripts such as maps/killhouse.gsc test level.console before calling maps\_utility::set_console_status(),
     // which later assigns (getdvar("consoleGame") == "true"). Pre-seed the same PC values when they are undefined
     // so the level main thread is not aborted by "cannot cast undefined to bool".
