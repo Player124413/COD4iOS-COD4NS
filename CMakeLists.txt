@@ -8,10 +8,25 @@ set(CMAKE_CXX_STANDARD 20)
 # Native iOS work is isolated from the Windows client until the full engine
 # and its 32-bit serialized assets have been migrated. Also expose CPU tests
 # on the host without pulling in DirectX or the Windows-only dependencies.
-option(KISAK_BUILD_PORT_TESTS "Build portable iOS modules and host tests" OFF)
+option(KISAK_BUILD_PORT_TESTS "Build portable iOS/Android modules and host tests" OFF)
+
+# The Android port is a separate entry point: the NDK toolchain file sets
+# ANDROID before this runs, and nothing in the Windows client below applies.
+if(ANDROID)
+    include(CTest)
+    add_subdirectory(ports/android)
+    return()
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR KISAK_BUILD_PORT_TESTS)
     include(CTest)
     add_subdirectory(ports/ios)
+    # The Android port's portable pieces - the performance subsystem and the
+    # Direct3D 9 to GLSL translator - are plain C++ and are tested on the host
+    # in the same run.
+    if(KISAK_BUILD_PORT_TESTS)
+        add_subdirectory(ports/android)
+    endif()
     return()
 endif()
 

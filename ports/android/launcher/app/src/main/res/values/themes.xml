@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launcher follows the system theme. The game window is a plain
+         black full-screen surface: anything else would be visible for a frame
+         during the transition. -->
+    <style name="Theme.KisakCOD" parent="Theme.Material3.DayNight">
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+    </style>
+
+    <style name="Theme.KisakCOD.Game" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentTransitions">false</item>
+        <!-- No activity transition animation: the first thing the engine does
+             is load a level, and an animation over a frozen frame reads as a
+             hang. -->
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

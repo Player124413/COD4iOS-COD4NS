@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The imported game data is tens of gigabytes of files the player already
+     owns on another machine. Backing it up or transferring it to a new device
+     would be slow, expensive and pointless, so only the small settings file
+     is included. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="kisakcod.xml" />
+        <exclude domain="file" path="cod4" />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="kisakcod.xml" />
+        <exclude domain="file" path="cod4" />
+    </device-transfer>
+</data-extraction-rules>

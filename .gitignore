@@ -71,3 +71,14 @@ __pycache__/
 *.orig
 *.bak
 *~
+
+# Android
+/build/android/
+ports/android/launcher/.gradle/
+ports/android/launcher/build/
+ports/android/launcher/app/build/
+ports/android/launcher/local.properties
+ports/android/launcher/.cxx/
+ports/android/launcher/app/.cxx/
+*.apk
+*.aab

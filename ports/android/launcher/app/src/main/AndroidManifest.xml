@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Multiplayer only. The single-player library never opens a socket. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- The engine runs on its own thread and keeps the screen on itself; no
+         wake lock is taken, because the system should still be free to sleep
+         the device when the activity is not in front. -->
+
+    <!-- arm64 only: the engine is a 64-bit port of 32-bit Windows code. -->
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="false" />
+    <uses-feature android:name="android.hardware.vulkan.level" android:version="0" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.KisakCOD"
+        android:hasFragileUserData="true"
+        android:isGame="true"
+        android:appCategory="game"
+        android:extractNativeLibs="false"
+        tools:targetApi="34">
+
+        <!-- The game data the player imports is tens of gigabytes; backing it
+             up to the cloud would be both pointless and rude. -->
+
+        <activity
+            android:name=".LauncherActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- configChanges lists everything, so the activity is never
+             recreated while the game is running. That is not an optimisation:
+             the engine holds process-wide state that cannot be unwound and
+             re-initialised, so an activity restart would mean a new process.
+             Rotation and resize are handled by rebuilding the swapchain.
+
+             preferMinimalPostProcessing asks a TV or monitor to turn off its
+             own image processing, which is worth 20-40 ms of input latency on
+             hardware that has a game mode. -->
+        <activity
+            android:name=".GameActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTask"
+            android:resizeableActivity="false"
+            android:preferMinimalPostProcessing="true"
+            android:theme="@style/Theme.KisakCOD.Game"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density|uiMode|colorMode" />
+    </application>
+</manifest>

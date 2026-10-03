@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KisakCOD</string>
+
+    <string name="data_notice">No game content is included with this app and none is downloaded. Point the launcher at a copy of the Call of Duty 4 PC installation you already own; the files it needs are copied into app storage.</string>
+
+    <string name="data_ready">Game data ready — %1$s, %2$s</string>
+    <string name="data_missing">Game data incomplete. Still missing:%1$s</string>
+
+    <string name="choose_folder">Choose game folder…</string>
+    <string name="reimport_folder">Import again…</string>
+    <string name="play">Play</string>
+    <string name="scanning">Scanning the folder…</string>
+    <string name="copying">%1$s\n%2$s of %3$s</string>
+    <string name="import_failed">The import failed.</string>
+
+    <string name="mode">Mode</string>
+    <string name="single_player">Single player</string>
+    <string name="multiplayer">Multiplayer</string>
+    <string name="mode_hint">Single player and multiplayer are separate engine builds, so switching restarts the app.</string>
+
+    <string name="performance">Performance</string>
+    <string name="dynamic_resolution">Adjust resolution automatically</string>
+    <string name="dynamic_resolution_hint">Lowers the rendering resolution when a scene gets heavy so the frame rate stays at 60. Recommended — the alternative is dropped frames.</string>
+    <string name="render_scale">Fixed resolution: %1$d%%</string>
+    <string name="touch_controls">On-screen controls</string>
+    <string name="touch_controls_hint">Hidden automatically while a gamepad is connected.</string>
+    <string name="perf_overlay">Show frame times</string>
+
+    <string name="delete_data">Delete imported game data</string>
+    <string name="delete_data_confirm">This frees the space the imported files take up. You can import them again from the same folder afterwards.</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="fatal_title">The game stopped</string>
+    <string name="quit">Quit</string>
+    <string name="restart_title">Restart needed</string>
+    <string name="restart_message">Switching to %1$s needs the app to restart, because the two modes are separate engine builds.</string>
+    <string name="restart">Restart</string>
+
+    <string name="licence_notice">KisakCOD is free software under the GNU GPL v3. It contains no Activision assets or code.</string>
+</resources>
