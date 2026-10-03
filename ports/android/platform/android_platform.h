@@ -36,6 +36,10 @@ void KisakAndroid_SetNativeWindow(void *window, int width, int height);
 void *KisakAndroid_GetNativeWindow();
 bool KisakAndroid_GetDisplaySize(int *width, int *height);
 void KisakAndroid_SetDisplayRefreshRate(double hz);
+// Last rate the activity reported, or 60 before it has reported one. Read by
+// the device profiler, which runs before the first surface callback on a cold
+// start and must not divide by zero.
+double KisakAndroid_GetDisplayRefreshRate();
 void KisakAndroid_SetDisplaySafeArea(float horizontal, float vertical);
 void KisakAndroid_GetDisplaySafeArea(float *horizontal, float *vertical);
 
@@ -52,6 +56,13 @@ bool KisakAndroid_IsForeground();
 // running. `commandLine` is appended to the engine's own.
 bool KisakAndroid_StartEngine(const char *commandLine);
 int KisakAndroid_RunEngine(const char *commandLine);
+
+// Device profiling, in ports/android/engine/device_bootstrap.cpp. Two phases
+// because the GPU does not exist until the renderer starts, which happens
+// inside Com_Init - see that file for why one phase is not enough.
+void KisakAndroid_BootstrapDeviceProfile();
+namespace kisak::perf { struct QualityProfile; }
+const kisak::perf::QualityProfile &KisakAndroid_RefreshDeviceProfile();
 
 // ---------------------------------------------------------------------------
 // Text input (the soft keyboard is a Java-side view)

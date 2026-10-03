@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -52,6 +53,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
 
     private var engineStarted = false
     private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
+    private var deviceListener: InputManager.InputDeviceListener? = null
     private var lastHeadroomPollMs = 0L
     private var frameCounter = 0
 
@@ -101,6 +103,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
         )
         settings.applyLive()
         registerThermalListener()
+        registerGamepadListener()
     }
 
     // --- surface -------------------------------------------------------------
@@ -191,6 +194,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
         goFullscreen()
         EngineBridge.nativeSetForeground(true)
         settings.applyLive()
+        refreshGamepadState()
         Choreographer.getInstance().postFrameCallback(this)
     }
 
@@ -206,6 +210,10 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
     }
 
     override fun onDestroy() {
+        deviceListener?.let {
+            (getSystemService(Context.INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(it)
+        }
+        deviceListener = null
         unregisterThermalListener()
         if (EngineBridge.loadedMode != null) {
             EngineBridge.nativeDetach()
@@ -316,6 +324,10 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // A controller's own Back button must not leave the game, so the
+        // gamepad path is checked before the Back handling below.
+        if (GamepadInput.onKey(event)) return true
+
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             // Back opens the pause menu rather than leaving the game. Quitting
             // mid-level by accident is the single worst thing a gesture can do
@@ -328,6 +340,37 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (GamepadInput.onKey(event)) return true
+        return super.onKeyUp(keyCode, event)
+    }
+
+    // Sticks, triggers and the D-pad hat all arrive here rather than as key
+    // events. Without this override a controller can press buttons but not
+    // move or aim.
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (GamepadInput.onMotion(event)) return true
+        return super.onGenericMotionEvent(event)
+    }
+
+    private fun registerGamepadListener() {
+        val manager = getSystemService(Context.INPUT_SERVICE) as InputManager
+        val listener = GamepadInput.createListener { refreshGamepadState() }
+        deviceListener = listener
+        manager.registerInputDeviceListener(listener, null)
+        refreshGamepadState()
+    }
+
+    private fun refreshGamepadState() {
+        val connected = GamepadInput.anyConnected()
+        if (!connected) GamepadInput.reset()
+        EngineBridge.nativeGamepadConnected(connected)
+        // The on-screen controls hide themselves while a controller is
+        // attached; the native side already knows, but the setting is what
+        // decides whether they may appear at all.
+        EngineBridge.nativeSetTouchControlsEnabled(settings.touchControls && !connected)
     }
 
     // --- called from native (ports/android/app/jni_bridge.cpp) ---------------

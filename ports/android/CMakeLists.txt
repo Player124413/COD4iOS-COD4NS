@@ -52,6 +52,21 @@ if(NOT ANDROID)
         target_compile_options(kisakcod_android_shader_tests PRIVATE -UNDEBUG)
         add_test(NAME android_shader_translator COMMAND kisakcod_android_shader_tests)
         set_tests_properties(android_shader_translator PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL:")
+
+        # The gamepad/touch merge. The engine side is stubbed by the test, so
+        # what runs here is the real android_input.cpp and the real on-screen
+        # control state machine - the two places where a wrong sign shows up
+        # on a device as "aiming is sometimes inverted" rather than a crash.
+        add_executable(kisakcod_android_input_tests
+            tests/InputMergeTests.cpp
+            engine/android_input.cpp
+            app/touch_controls.cpp
+        )
+        target_compile_features(kisakcod_android_input_tests PRIVATE cxx_std_17)
+        target_compile_options(kisakcod_android_input_tests PRIVATE -UNDEBUG)
+        target_include_directories(kisakcod_android_input_tests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../ios/engine")
+        add_test(NAME android_input_merge COMMAND kisakcod_android_input_tests)
+        set_tests_properties(android_input_merge PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL:")
     endif()
     return()
 endif()
@@ -206,6 +221,10 @@ set(KISAK_ANDROID_PORT_SOURCES
     # Android replacements for the rest of src/win32.
     "${CMAKE_CURRENT_LIST_DIR}/engine/android_sys.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/engine/apple_bridge.cpp"
+    # Gamepad state and the per-frame merge with the on-screen controls.
+    "${CMAKE_CURRENT_LIST_DIR}/engine/android_input.cpp"
+    # Builds the DeviceDescriptor the performance subsystem reasons about.
+    "${CMAKE_CURRENT_LIST_DIR}/engine/device_bootstrap.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_events.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_timing.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_critical_sections.cpp"

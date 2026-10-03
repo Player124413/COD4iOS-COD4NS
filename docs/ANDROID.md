@@ -91,8 +91,9 @@ This produces `libkisakcod_sp.so` and `libkisakcod_mp.so` and nothing else.
 
 ### Host tests
 
-The parts of the port that are plain C++ — the performance subsystem and the
-shader translator — are tested on any machine with a C++17 compiler:
+The parts of the port that are plain C++ — the performance subsystem, the
+shader translator, and the gamepad/touch input merge — are tested on any
+machine with a C++17 compiler:
 
 ```sh
 cmake -S . -B build/host -DKISAK_BUILD_PORT_TESTS=ON -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
@@ -205,6 +206,30 @@ starting resolution. Every tier targets 60 fps; what differs is what is spent
 to get there. Unknown hardware gets Medium, which is recoverable in both
 directions.
 
+### 5b. One input path, two sources
+
+`ports/android/engine/android_input.cpp`
+
+Android has no equivalent of iOS's GameController callback, so key and motion
+events are accumulated from the UI thread and sampled once per frame by the
+engine thread. A physical pad and the on-screen controls are never summed: a
+thumb resting in the stick region would fight a centred stick. The pad wins
+whenever one is attached, and the overlay hides itself.
+
+Two details are worth knowing before debugging it:
+
+* Android's Y axis is down-positive and the engine's is up-positive, so both
+  sticks are negated on the way in.
+* `Snapshot::connected` means "this input source is live", not "a physical pad
+  is attached" — the shared controller code drops the whole snapshot when it
+  is false. Touch samples set it too; `Snapshot::touch` is what distinguishes
+  them.
+
+Keycode and axis translation lives in Kotlin (`GamepadInput.kt`), so the
+native side is handed a bit position in `kisak::controller::Button` and never
+sees an Android keycode. D-pad hat releases are synthesised there, because
+returning the hat to centre emits no `KeyEvent`.
+
 ### 6. Shader and pipeline compilation is paid once
 
 `ports/android/gfx/vulkan/pipeline_cache.{h,cpp}`
@@ -252,6 +277,11 @@ is clamped, because Direct3D 9 returned zero out of range and Vulkan faults.
   modifiers, `def` folding, flow control nesting, loop registers and relative
   addressing, shadow and cube samplers, missing varyings, integer attributes,
   multiple render targets, `vPos`/`vFace`, and rejection of malformed input.
+* `ports/android/engine/android_input.cpp` — 51 assertions,
+  `ctest -R android_input_merge`, running the real merge against a stubbed
+  engine: axis sign and clamping, trigger-to-button thresholds, out-of-range
+  button indices, state reset on connect and disconnect, label coverage, and
+  when the on-screen controls appear.
 
 **Not verified** — no NDK, JDK, Gradle or Android device was available in the
 environment this was written in:
@@ -259,7 +289,14 @@ environment this was written in:
 * The native cross-compile. The CMake is written against the NDK toolchain but
   has not been run through it.
 * The Vulkan backend, the JNI bridge, the MediaCodec video player and the
-  Kotlin launcher have not been compiled.
+  Kotlin launcher have not been compiled. The JNI and Kotlin sides have been
+  checked against each other by name — all 32 `external fun native*`
+  declarations have exactly one matching `JNI_METHOD`, and every
+  `GetMethodID` callback has a matching Kotlin method — but a name match is
+  not a compile.
+* No controller has been plugged into anything. The merge logic is tested;
+  the keycode table in `GamepadInput.kt` is not, and a pad that reports its
+  buttons unusually will need that table extended.
 * No frame has been rendered and no frame rate has been measured. The
   performance work above is reasoned from how these parts behave, and the
   numbers in the tables are the policy the code implements — not measurements.

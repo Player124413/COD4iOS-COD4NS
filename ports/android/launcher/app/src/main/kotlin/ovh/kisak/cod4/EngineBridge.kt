@@ -89,6 +89,24 @@ object EngineBridge {
     /** phase: 0 down, 1 move, 2 up, 3 cancel. */
     external fun nativeTouch(pointerId: Int, phase: Int, x: Float, y: Float)
 
+    /**
+     * Gamepad state. [bit] is a position in `kisak::controller::Button`, not
+     * an Android keycode - the keycode table lives in [GamepadInput] so the
+     * native side never sees one.
+     */
+    external fun nativeGamepadConnected(connected: Boolean)
+    external fun nativeGamepadButton(bit: Int, pressed: Boolean)
+    external fun nativeGamepadAxes(
+        leftX: Float,
+        leftY: Float,
+        rightX: Float,
+        rightY: Float,
+        leftTrigger: Float,
+        rightTrigger: Float,
+    )
+
+    external fun nativeGamepadPresent(): Boolean
+
     external fun nativeSetTouchControlsEnabled(enabled: Boolean)
     external fun nativeTouchControlsVisible(): Boolean
 

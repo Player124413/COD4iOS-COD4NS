@@ -612,8 +612,17 @@ bool KisakAndroid_GetDisplaySize(int *width, int *height)
     return true;
 }
 
+std::atomic<double> g_displayRefreshHz{ 60.0 };
+
+double KisakAndroid_GetDisplayRefreshRate()
+{
+    return g_displayRefreshHz.load(std::memory_order_acquire);
+}
+
 void KisakAndroid_SetDisplayRefreshRate(double hz)
 {
+    if (hz > 20.0 && hz < 500.0)
+        g_displayRefreshHz.store(hz, std::memory_order_release);
     kisak::perf::Director().SetDisplayRefreshRate(hz);
 }
 
@@ -678,16 +687,25 @@ int KisakAndroid_RunEngine(const char *commandLine)
     Dvar_Init();
     InitTiming();
     Sys_FindInfo_Android();
+
+    // Before Com_Init, because Sys_Init - which Com_Init calls - reports the
+    // quality tier and reads the CPU topology. The GPU is still unknown at
+    // this point; the profile is refined below once the renderer is up.
+    KisakAndroid_BootstrapDeviceProfile();
     I_strncpyz(sys_cmdline, commandLine ? commandLine : "", sizeof(sys_cmdline));
     Sys_Milliseconds();
     Profile_Init();
     Profile_InitContext(0);
     Com_Init(sys_cmdline);
 
-    // Apply the device profile after Com_Init, so it overrides whatever the
-    // archived config holds: a profile copied from another device, or one
-    // written before the player changed phones, must not decide the settings.
-    const std::string defaults = kisak::perf::Director().profile().ToConsoleCommands();
+    // Com_Init brought the renderer up, so the GPU model is known now and the
+    // provisional profile can be replaced with a real one.
+    const kisak::perf::QualityProfile &profile = KisakAndroid_RefreshDeviceProfile();
+
+    // Applied after Com_Init, so it overrides whatever the archived config
+    // holds: a profile copied from another device, or one written before the
+    // player changed phones, must not decide the settings.
+    const std::string defaults = profile.ToConsoleCommands();
     Cbuf_AddText(0, defaults.c_str());
     // The pacer owns the frame rate, so the engine's own limiter must not
     // also try. Two limiters in series produce a beat frequency, which is

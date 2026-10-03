@@ -31,6 +31,15 @@
 #include <mutex>
 #include <string>
 
+// ports/android/engine/android_input.cpp. Declared here rather than given a
+// header of their own: these four are the entire surface between the JNI
+// layer and the gamepad state, and they have exactly one caller each.
+void KisakAndroid_GamepadConnected(bool connected);
+void KisakAndroid_GamepadButton(int bit, bool pressed);
+void KisakAndroid_GamepadAxes(float leftX, float leftY, float rightX, float rightY, float leftTrigger,
+                              float rightTrigger);
+bool KisakAndroid_GamepadPresent();
+
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "KisakCOD", __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "KisakCOD", __VA_ARGS__)
 
@@ -396,6 +405,33 @@ JNI_METHOD(void, nativeTouch)(JNIEnv *, jobject, jint pointerId, jint phase, jfl
     default: kisak::android::touch::CancelPointer(pointerId); break;
     }
     KisakAndroid_TouchEvent(pointerId, phase, x, y);
+}
+
+// --- gamepad ---------------------------------------------------------------
+// Buttons are passed as a bit index into kisak::controller::Button rather
+// than an Android keycode, so the keycode table lives in Kotlin next to the
+// KeyEvent constants and this side stays free of them.
+
+JNI_METHOD(void, nativeGamepadConnected)(JNIEnv *, jobject, jboolean connected)
+{
+    KisakAndroid_GamepadConnected(connected == JNI_TRUE);
+}
+
+JNI_METHOD(void, nativeGamepadButton)(JNIEnv *, jobject, jint bit, jboolean pressed)
+{
+    KisakAndroid_GamepadButton(bit, pressed == JNI_TRUE);
+}
+
+JNI_METHOD(void, nativeGamepadAxes)
+(JNIEnv *, jobject, jfloat leftX, jfloat leftY, jfloat rightX, jfloat rightY, jfloat leftTrigger,
+ jfloat rightTrigger)
+{
+    KisakAndroid_GamepadAxes(leftX, leftY, rightX, rightY, leftTrigger, rightTrigger);
+}
+
+JNI_METHOD(jboolean, nativeGamepadPresent)(JNIEnv *, jobject)
+{
+    return KisakAndroid_GamepadPresent() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNI_METHOD(void, nativeSetTouchControlsEnabled)(JNIEnv *, jobject, jboolean enabled)

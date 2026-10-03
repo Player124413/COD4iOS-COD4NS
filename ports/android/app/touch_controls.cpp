@@ -16,8 +16,6 @@
 
 #include "../../ios/input/TouchControls.h"
 
-#include <android/log.h>
-
 #include <chrono>
 #include <mutex>
 

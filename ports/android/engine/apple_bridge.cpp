@@ -16,9 +16,10 @@
 // is four function calls that the linker inlines away; the benefit is that a
 // fix to the controller mapping lands on both platforms at once.
 //
-// The one direction that runs the other way is ControllerFrame: the Android
-// system layer calls KisakAndroid_ControllerFrame, which is implemented in
-// the shared controller_input.cpp under its Apple name.
+// ControllerFrame is not forwarded here. The Android side has real work to
+// do first - merging the gamepad with the on-screen controls and publishing
+// the result - so KisakAndroid_ControllerFrame lives in android_input.cpp
+// and calls the shared KisakApple_ControllerFrame at the end.
 
 #include <cstdint>
 
@@ -32,9 +33,6 @@ extern "C++" {
 void *KisakAndroid_GetNativeWindow();
 bool KisakAndroid_GetDisplaySize(int *width, int *height);
 void KisakAndroid_ControllerCursor(float dx, float dy, int button);
-
-// --- implemented in ports/ios/engine/controller_input.cpp ---
-void KisakApple_ControllerFrame();
 
 } // extern "C++"
 
@@ -59,9 +57,4 @@ bool KisakApple_GetDisplaySize(int *width, int *height)
 void KisakApple_ControllerCursor(float dx, float dy, int button)
 {
     KisakAndroid_ControllerCursor(dx, dy, button);
-}
-
-void KisakAndroid_ControllerFrame()
-{
-    KisakApple_ControllerFrame();
 }
