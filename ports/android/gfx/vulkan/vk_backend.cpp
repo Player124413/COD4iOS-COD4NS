@@ -94,6 +94,7 @@ struct Backend
     // Resolution the scene renders at; the swapchain may be larger.
     uint32_t renderWidth = 0;
     uint32_t renderHeight = 0;
+    uint32_t instanceVersion = VK_API_VERSION_1_0;
 
     DeviceInfo info;
     std::string deviceNameStorage;
@@ -362,9 +363,25 @@ bool CreateInstance()
     app.applicationVersion = 1;
     app.pEngineName = "KisakCOD";
     app.engineVersion = 1;
-    // 1.0 as the floor: every Android device with a Vulkan driver supports it,
-    // and nothing here needs 1.1. The real version is read back afterwards.
-    app.apiVersion = VK_API_VERSION_1_0;
+    // Ask for the highest version the loader offers, capped at what this
+    // backend is written against. Pinning 1.0 was leaving the newer core
+    // features unreachable even on a device that supports them, because the
+    // loader clamps everything to the version the instance declares.
+    //
+    // 1.0 stays the floor rather than the requirement: minSdk is 26, and a
+    // phone from that era may offer nothing newer. Raising the floor would
+    // drop exactly the low-end devices this port is meant to run on.
+    // vkEnumerateInstanceVersion is itself a 1.1 entry point, so its absence
+    // is how a 1.0 loader announces itself.
+    uint32_t loaderVersion = VK_API_VERSION_1_0;
+    if (auto enumerateVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
+            vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion")))
+    {
+        if (enumerateVersion(&loaderVersion) != VK_SUCCESS)
+            loaderVersion = VK_API_VERSION_1_0;
+    }
+    app.apiVersion = std::min(loaderVersion, VK_API_VERSION_1_3);
+    g.instanceVersion = app.apiVersion;
 
     const char *extensions[] = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME };
 
@@ -806,8 +823,14 @@ bool Initialize(void *window)
         return false;
 
     g.headless = false;
-    LOGI("Vulkan ready: %s (API %u.%u.%u)", g.info.deviceName, VK_VERSION_MAJOR(g.info.apiVersion),
-         VK_VERSION_MINOR(g.info.apiVersion), VK_VERSION_PATCH(g.info.apiVersion));
+    // Usable version is the lower of the two: the driver cannot offer more
+    // than the instance declared, and the instance cannot grant more than the
+    // driver implements.
+    const uint32_t usable = std::min(g.instanceVersion, g.info.apiVersion);
+    LOGI("Vulkan ready: %s (driver API %u.%u.%u, instance %u.%u, using %u.%u)", g.info.deviceName,
+         VK_VERSION_MAJOR(g.info.apiVersion), VK_VERSION_MINOR(g.info.apiVersion),
+         VK_VERSION_PATCH(g.info.apiVersion), VK_VERSION_MAJOR(g.instanceVersion),
+         VK_VERSION_MINOR(g.instanceVersion), VK_VERSION_MAJOR(usable), VK_VERSION_MINOR(usable));
     return true;
 }
 
