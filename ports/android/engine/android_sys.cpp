@@ -522,6 +522,21 @@ void IN_Frame()
 {
     KisakAndroid_ControllerFrame();
 
+    // Follow the engine into and out of a text field. iOS does this from a
+    // timer in -syncKeyboard; the Android plumbing existed down to the
+    // Kotlin InputMethodManager call but nothing ever decided to show the
+    // keyboard, so a phone with no hardware keys could not type a profile
+    // name at all.
+    {
+        static int shown = -1;
+        const int editing = KisakAndroid_TextInputActive() ? 1 : 0;
+        if (editing != shown)
+        {
+            shown = editing;
+            KisakAndroid_SetSoftKeyboardVisible(editing);
+        }
+    }
+
     std::vector<KisakTouch> touches;
     {
         std::lock_guard<std::mutex> guard(g_touchLock);

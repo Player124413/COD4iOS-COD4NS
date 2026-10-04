@@ -20,6 +20,10 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
+import android.text.InputType
+import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -78,7 +82,22 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
         goFullscreen()
 
         val root = FrameLayout(this)
-        surfaceView = SurfaceView(this).apply {
+        // A plain SurfaceView reports no InputConnection, and an IME asked to
+        // open on a view that cannot accept text either refuses or delivers
+        // nothing. BaseInputConnection in non-full-editor mode is enough: the
+        // keyboard opens and commits arrive as key events, which onKeyDown
+        // already forwards to the engine.
+        surfaceView = object : SurfaceView(this) {
+            override fun onCheckIsTextEditor(): Boolean = EngineBridge.nativeTextInputActive()
+
+            override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+                outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                outAttrs.imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                return BaseInputConnection(this, false)
+            }
+        }.apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
             holder.addCallback(this@GameActivity)
         }
         overlay = TouchOverlayView(this)

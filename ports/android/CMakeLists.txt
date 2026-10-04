@@ -291,6 +291,14 @@ set(KISAK_ANDROID_COMPILE_OPTIONS
     # two's-complement wraparound, which is what MSVC happened to do.
     -fno-strict-aliasing
     -fwrapv
+    # Plain 'char' is signed on the x86 Windows build this code was written
+    # for, and signed on Apple's ARM64 ABI, which is why the iOS port never
+    # hit this. The generic AArch64 ABI makes it unsigned, so every 'char'
+    # the engine uses as a small signed number silently flips: Glyph::x0 in
+    # src/gfx_d3d/r_font.h is a negative left side bearing, and read as
+    # unsigned it threw letters like 't' hundreds of pixels across the
+    # screen. The whole decompiled codebase assumes signed, so match it.
+    -fsigned-char
     # Tens of thousands of warnings from the decompiled sources; errors are
     # what matter.
     -w

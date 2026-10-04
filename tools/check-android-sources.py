@@ -866,6 +866,24 @@ def check_apple_only_policy() -> list[str]:
     return problems
 
 
+def check_signed_char() -> list[str]:
+    """Check 11: the Android build must force signed char.
+
+    The engine is decompiled from an x86 Windows build, where plain char is
+    signed, and Apple's ARM64 ABI keeps it signed, which is why iOS never saw
+    this. The generic AArch64 ABI makes it unsigned, so every char the engine
+    uses as a small signed number flips: Glyph::x0 in src/gfx_d3d/r_font.h is
+    a negative left side bearing, and unsigned it threw glyphs hundreds of
+    pixels sideways.
+    """
+    text = open("ports/android/CMakeLists.txt", encoding="utf-8").read()
+    if "-fsigned-char" not in text:
+        return ["ports/android/CMakeLists.txt: -fsigned-char is missing from "
+                "KISAK_ANDROID_COMPILE_OPTIONS; plain char is unsigned on AArch64 and the "
+                "engine assumes signed."]
+    return []
+
+
 def main() -> int:
     failed = False
 
@@ -904,6 +922,7 @@ def main() -> int:
         ("Apple-gated shared calls", check_apple_gated_shared_calls),
         ("Backup rules", check_backup_rules),
         ("Apple-only guard policy", check_apple_only_policy),
+        ("Signed char", check_signed_char),
     ):
         problems = check()
         if problems:
