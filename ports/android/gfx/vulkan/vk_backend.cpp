@@ -95,6 +95,10 @@ struct Backend
     uint32_t renderWidth = 0;
     uint32_t renderHeight = 0;
     uint32_t instanceVersion = VK_API_VERSION_1_0;
+    // Set when the driver reports the window surface gone, cleared when a new
+    // one arrives. Without it every later frame retries against the dead
+    // surface and logs another VK_ERROR_SURFACE_LOST_KHR.
+    bool surfaceLost = false;
 
     DeviceInfo info;
     std::string deviceNameStorage;
@@ -673,9 +677,22 @@ void DestroySwapchain()
 
 bool CreateSwapchain(uint32_t width, uint32_t height)
 {
+    // The window can disappear between the engine asking for a frame and this
+    // running: rotation, backgrounding, or the activity being torn down. The
+    // engine keeps asking, so without these two guards every subsequent frame
+    // retries against a dead surface and logs another failure.
+    if (g.surface == VK_NULL_HANDLE || g.surfaceLost)
+        return false;
+
     VkSurfaceCapabilitiesKHR capabilities{};
-    if (!Check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g.physicalDevice, g.surface, &capabilities),
-               "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"))
+    const VkResult caps = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g.physicalDevice, g.surface, &capabilities);
+    if (caps == VK_ERROR_SURFACE_LOST_KHR)
+    {
+        LOGE("the window surface was lost; waiting for a new one");
+        g.surfaceLost = true;
+        return false;
+    }
+    if (!Check(caps, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"))
         return false;
 
     VkExtent2D extent = capabilities.currentExtent;
@@ -809,6 +826,7 @@ bool Initialize(void *window)
 
     VkAndroidSurfaceCreateInfoKHR surfaceInfo{ VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR };
     surfaceInfo.window = g.window;
+    g.surfaceLost = false;
     if (!Check(vkCreateAndroidSurfaceKHR(g.instance, &surfaceInfo, nullptr, &g.surface), "vkCreateAndroidSurfaceKHR"))
         return false;
 
@@ -860,6 +878,7 @@ void SurfaceChanged(void *window, uint32_t width, uint32_t height)
             return; // activity paused: the device and all resources survive
         VkAndroidSurfaceCreateInfoKHR surfaceInfo{ VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR };
         surfaceInfo.window = g.window;
+        g.surfaceLost = false;
         if (!Check(vkCreateAndroidSurfaceKHR(g.instance, &surfaceInfo, nullptr, &g.surface),
                    "vkCreateAndroidSurfaceKHR"))
             return;

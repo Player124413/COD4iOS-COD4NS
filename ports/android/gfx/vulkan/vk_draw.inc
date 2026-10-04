@@ -56,6 +56,9 @@ struct DrawStats
     uint32_t noPass;
     uint32_t noRingSpace;
     uint32_t noDescriptor;
+    // Draws that bound no texture at all, so the sampler bindings the shader
+    // declares could not be filled even with a stand-in.
+    uint32_t noTexture;
     bool haveViewport;
     Viewport viewport;
 };
@@ -697,14 +700,25 @@ VkDescriptorSet BuildDescriptorSet(const DrawState &state, uint32_t vertexConsta
         writes.push_back(write);
     }
 
+    // Vulkan requires every binding the shader statically reads to be
+    // written. An unwritten one is undefined behaviour, and Adreno resolves
+    // it to black rather than faulting - which looks exactly like a frame
+    // that was drawn correctly and happens to be black.
+    //
+    // The engine leaves sampler slots empty whenever a material binds fewer
+    // maps than the shader declares, which is most of the 2D menu, so this
+    // is not a rare path. Fill the gaps with the first texture the draw does
+    // bind: the shader does not read those slots, it only has to be legal to
+    // have them bound.
+    Texture *filler = nullptr;
+    for (uint32_t i = 0; i < kMaxSamplers && !filler; ++i)
+        filler = state.textures[i];
+    if (!filler)
+        ++g_drawStats.noTexture;
+
     for (uint32_t i = 0; i < kMaxSamplers; ++i)
     {
-        Texture *texture = state.textures[i];
-        // Vulkan requires every declared binding to be written, even for a
-        // slot the shader never reads: an unwritten binding is undefined
-        // behaviour and crashes the validation layers and some drivers. A
-        // null slot gets whatever texture is at slot 0, or is skipped if the
-        // frame has nothing bound at all.
+        Texture *texture = state.textures[i] ? state.textures[i] : filler;
         if (!texture)
             continue;
 
@@ -1268,10 +1282,10 @@ void Present(const TargetBinding &backBuffer)
     if (g_drawStatsFrame <= 3 || (g_drawStatsFrame % 240) == 0)
     {
         const uint32_t dropped = g_drawStats.requested - g_drawStats.submitted;
-        LOGI("frame %u: %u draws requested, %u submitted, dropped %u (pipeline %u, pass %u, ring %u, descriptor %u); "
+        LOGI("frame %u: %u draws requested, %u submitted, dropped %u (pipeline %u, pass %u, ring %u, descriptor %u), %u untextured; "
              "viewport %.1f,%.1f %.1fx%.1f z %.2f..%.2f",
              g_drawStatsFrame, g_drawStats.requested, g_drawStats.submitted, dropped, g_drawStats.noPipeline,
-             g_drawStats.noPass, g_drawStats.noRingSpace, g_drawStats.noDescriptor,
+             g_drawStats.noPass, g_drawStats.noRingSpace, g_drawStats.noDescriptor, g_drawStats.noTexture,
              g_drawStats.haveViewport ? g_drawStats.viewport.x : -1.0f,
              g_drawStats.haveViewport ? g_drawStats.viewport.y : -1.0f,
              g_drawStats.haveViewport ? g_drawStats.viewport.width : -1.0f,
