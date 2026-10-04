@@ -68,6 +68,12 @@ struct DrawStats
     uint32_t targetHeight[kMaxTracked];
     uint32_t targetCount;
     uint32_t passes;
+    // The first draw of the frame, kept so the report can print the shader
+    // and the state it actually ran with.
+    const Shader *firstVertexShader;
+    const Shader *firstPixelShader;
+    RenderState firstRender;
+    bool haveFirstDraw;
     bool haveViewport;
     Viewport viewport;
 };
@@ -79,6 +85,13 @@ uint32_t g_emptyFrames;
 // told apart from a frame whose geometry was transformed into nothing.
 void NoteDraw(const DrawState &state)
 {
+    if (!g_drawStats.haveFirstDraw)
+    {
+        g_drawStats.haveFirstDraw = true;
+        g_drawStats.firstVertexShader = state.vertexShader;
+        g_drawStats.firstPixelShader = state.pixelShader;
+        g_drawStats.firstRender = state.render;
+    }
     ++g_drawStats.requested;
     if (!g_drawStats.haveViewport)
     {
@@ -1338,6 +1351,43 @@ void Present(const TargetBinding &backBuffer)
             LOGI("frame %u: %u passes into [%s]; presenting %p; the presented image %s drawn into",
                  g_drawStatsFrame, g_drawStats.passes, rendered, static_cast<const void *>(backBuffer.texture),
                  drewIntoPresented ? "WAS" : "WAS NOT");
+        }
+        // Print the generated vertex shader once, on the first frame that
+        // draws a real workload. Every counter can read clean while the
+        // translated code puts the geometry somewhere invisible, and no
+        // counter can see that - only the code itself can.
+        static bool dumped = false;
+        if (!dumped && g_drawStats.haveFirstDraw && g_drawStats.requested >= 8)
+        {
+            dumped = true;
+            const RenderState &r = g_drawStats.firstRender;
+            LOGI("first draw state: depth %s/%s func %d, blend %s src %d dst %d, alphaTest %s ref %u, cull %d, "
+                 "colorWriteMask 0x%X",
+                 r.depthEnable ? "on" : "off", r.depthWrite ? "write" : "nowrite", static_cast<int>(r.depthFunc),
+                 r.blendEnable ? "on" : "off", static_cast<int>(r.srcColor), static_cast<int>(r.destColor),
+                 r.alphaTest ? "on" : "off", r.alphaRef, static_cast<int>(r.cull), r.colorWriteMask);
+            for (int stage = 0; stage < 2; ++stage)
+            {
+                const Shader *shader = stage == 0 ? g_drawStats.firstVertexShader : g_drawStats.firstPixelShader;
+                const char *label = stage == 0 ? "vertex" : "fragment";
+                if (!shader || shader->glsl.empty())
+                {
+                    LOGI("first draw %s shader: none", label);
+                    continue;
+                }
+                LOGI("---- first draw %s shader (%zu chars) ----", label, shader->glsl.size());
+                std::size_t at = 0;
+                uint32_t line = 0;
+                while (at < shader->glsl.size() && line < 120)
+                {
+                    const std::size_t end = shader->glsl.find('\n', at);
+                    const std::size_t stop = end == std::string::npos ? shader->glsl.size() : end;
+                    LOGI("%.*s", static_cast<int>(stop - at), shader->glsl.data() + at);
+                    at = stop + 1;
+                    ++line;
+                }
+                LOGI("---- end %s shader ----", label);
+            }
         }
         LOGI("frame %u: target %s %ux%u, blit source %ux%u, swapchain %ux%u", g_drawStatsFrame,
              backBuffer.texture ? "ok" : "MISSING",

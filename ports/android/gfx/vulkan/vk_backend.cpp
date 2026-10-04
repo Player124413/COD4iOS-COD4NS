@@ -1216,6 +1216,7 @@ Shader *CreateShader(const uint32_t *tokens, size_t count)
     shader->outputs = translated.outputs;
     shader->samplers = translated.samplers;
     shader->constantCount = translated.constantCount;
+    shader->glsl = translated.source;
     shader->spirv = std::move(spirv);
     shader->sourceHash = HashBytes(tokens, count * sizeof(uint32_t));
 

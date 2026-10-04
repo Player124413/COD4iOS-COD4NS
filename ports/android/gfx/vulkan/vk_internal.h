@@ -94,6 +94,11 @@ struct Shader
     // re-running the translator.
     std::vector<uint32_t> spirv;
     uint64_t sourceHash = 0;
+    // Translator output, kept so a frame can print the shader it actually
+    // ran. Every per-draw counter can read clean while the generated code
+    // puts the geometry somewhere invisible, and that is the one thing no
+    // counter can see.
+    std::string glsl;
 };
 
 struct VertexLayout
