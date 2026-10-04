@@ -1279,6 +1279,14 @@ void Present(const TargetBinding &backBuffer)
              g_drawStats.haveViewport ? g_drawStats.viewport.maxZ : -1.0f);
         if (!g_frameOpen)
             LOGI("frame %u: nothing opened a render pass, so no image is presented", g_drawStatsFrame);
+        // The blit at the end of this function is what actually puts anything
+        // on screen. A null target, or a zero-sized source, is a black screen
+        // no matter how much was drawn into it.
+        LOGI("frame %u: target %s %ux%u, blit source %ux%u, swapchain %ux%u", g_drawStatsFrame,
+             backBuffer.texture ? "ok" : "MISSING",
+             backBuffer.texture ? backBuffer.texture->desc.width : 0u,
+             backBuffer.texture ? backBuffer.texture->desc.height : 0u,
+             g.renderWidth, g.renderHeight, g.swapchainExtent.width, g.swapchainExtent.height);
     }
     g_drawStats = DrawStats{};
 

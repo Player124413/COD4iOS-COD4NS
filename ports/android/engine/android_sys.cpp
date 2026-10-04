@@ -309,9 +309,18 @@ void Sys_In_Restart_f()
     IN_Init();
 }
 
-void __cdecl Sys_Init()
+// Fills sys_info. Separate from Sys_Init because Com_Init runs autoconfigure
+// - which picks the CPU/GPU tier and the texture detail from these fields -
+// before it reaches Sys_Init. Left until then, autoconfigure reads zeroes and
+// settles on "0 GHz 128 MB", which forces picmip 2 and blurs every texture.
+// Idempotent, so Sys_Init can still call it on a path that skipped the early
+// one.
+void KisakAndroid_FillSystemInfo()
 {
-    Cmd_AddCommandInternal("in_restart", Sys_In_Restart_f, &Sys_In_Restart_f_VAR);
+    static bool filled = false;
+    if (filled)
+        return;
+    filled = true;
 
     sys_info.logicalCpuCount = static_cast<int>(sysconf(_SC_NPROCESSORS_CONF));
     if (sys_info.logicalCpuCount <= 0)
@@ -319,7 +328,6 @@ void __cdecl Sys_Init()
     // Phones do not use SMT, so physical and logical counts are the same.
     sys_info.physicalCpuCount = sys_info.logicalCpuCount;
 
-    const kisak::perf::CpuTopology &topology = kisak::perf::Director().topology();
     // The Windows build benchmarks x86 cores to choose default detail. That
     // number is meaningless here, and the port chooses detail from the device
     // profile instead; report a plausible figure so the engine's own
@@ -337,9 +345,18 @@ void __cdecl Sys_Init()
                                             : "Android GPU",
                sizeof(sys_info.gpuDescription));
 
+}
+
+void __cdecl Sys_Init()
+{
+    Cmd_AddCommandInternal("in_restart", Sys_In_Restart_f, &Sys_In_Restart_f_VAR);
+
+    KisakAndroid_FillSystemInfo();
+
     Com_Printf(CON_CHANNEL_SYSTEM, "CPU vendor is \"%s\"\n", sys_info.cpuVendor);
     Com_Printf(CON_CHANNEL_SYSTEM, "CPU name is \"%s\"\n", sys_info.cpuName);
     Com_Printf(CON_CHANNEL_SYSTEM, "%i logical CPUs reported\n", sys_info.logicalCpuCount);
+    const kisak::perf::CpuTopology &topology = kisak::perf::Director().topology();
     Com_Printf(CON_CHANNEL_SYSTEM, "CPU clusters: %zu little, %zu big, %zu prime\n", topology.little.size(),
                topology.big.size(), topology.prime.size());
     Com_Printf(CON_CHANNEL_SYSTEM, "System memory is %i MB (capped at 1 GB)\n", sys_info.sysMB);
@@ -752,14 +769,14 @@ int KisakAndroid_RunEngine(const char *commandLine)
     Com_InitParse();
     Dvar_Init();
     InitTiming();
-    // No Sys_FindInfo() equivalent here, unlike iOS: sys_info is filled by
-    // Sys_Init() (reached via Com_Init below) because the GPU description
-    // depends on the quality tier, which BootstrapDeviceProfile sets next.
-
-    // Before Com_Init, because Sys_Init - which Com_Init calls - reports the
-    // quality tier and reads the CPU topology. The GPU is still unknown at
-    // this point; the profile is refined below once the renderer is up.
+    // Before Com_Init, because it reports the quality tier and reads the CPU
+    // topology. The GPU is still unknown at this point; the profile is
+    // refined below once the renderer is up.
     KisakAndroid_BootstrapDeviceProfile();
+
+    // Also before Com_Init: autoconfigure runs inside it and reads sys_info
+    // long before Com_Init reaches Sys_Init.
+    KisakAndroid_FillSystemInfo();
     I_strncpyz(sys_cmdline, commandLine ? commandLine : "", sizeof(sys_cmdline));
     Sys_Milliseconds();
     Profile_Init();
