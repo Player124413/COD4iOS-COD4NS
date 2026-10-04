@@ -56,9 +56,23 @@ struct DrawStats
     uint32_t noPass;
     uint32_t noRingSpace;
     uint32_t noDescriptor;
+    bool haveViewport;
+    Viewport viewport;
 };
 DrawStats g_drawStats;
 uint32_t g_drawStatsFrame;
+
+// Records what the engine asked for, so a frame that produced nothing can be
+// told apart from a frame whose geometry was transformed into nothing.
+void NoteDraw(const DrawState &state)
+{
+    ++g_drawStats.requested;
+    if (!g_drawStats.haveViewport)
+    {
+        g_drawStats.haveViewport = true;
+        g_drawStats.viewport = state.viewport;
+    }
+}
 bool g_frameOpen = false;
 
 // ---------------------------------------------------------------------------
@@ -1063,7 +1077,7 @@ void Draw(const DrawState &state, Primitive primitive, uint32_t primitiveCount, 
     EnsureFrameOpen();
 
     TransitionSampledTextures(state);
-    ++g_drawStats.requested;
+    NoteDraw(state);
     if (!BeginPass(state))
     {
         ++g_drawStats.noPass;
@@ -1087,6 +1101,7 @@ void DrawUserPrimitives(const DrawState &state, Primitive primitive, uint32_t pr
         return;
     std::lock_guard<std::mutex> lock(g.mutex);
     EnsureFrameOpen();
+    NoteDraw(state);
 
     const uint32_t vertexCount = VertexCount(primitive, primitiveCount);
     const VkDeviceSize bytes = static_cast<VkDeviceSize>(vertexCount) * stride;
@@ -1094,7 +1109,10 @@ void DrawUserPrimitives(const DrawState &state, Primitive primitive, uint32_t pr
     void *mapped = nullptr;
     const VkDeviceSize offset = RingAllocate(bytes, 16, &mapped);
     if (offset == VK_WHOLE_SIZE)
+    {
+        ++g_drawStats.noRingSpace;
         return;
+    }
     std::memcpy(mapped, vertices, bytes);
 
     // DrawPrimitiveUP has no buffer object, so a local DrawState points
@@ -1113,6 +1131,7 @@ void DrawUserPrimitives(const DrawState &state, Primitive primitive, uint32_t pr
     TransitionSampledTextures(local);
     if (!BeginPass(local) || !BindDrawState(local, primitive))
         return;
+    ++g_drawStats.submitted;
     vkCmdDraw(Frame().commandBuffer, vertexCount, 1, 0, 0);
 
     // The shadow holds a pointer to the stack Buffer above; forget it so the
@@ -1241,14 +1260,25 @@ void Blit(const TargetBinding &source, const TargetBinding &destination)
 
 void Present(const TargetBinding &backBuffer)
 {
-    // Report the first few frames, then only when draws are being dropped.
+    // Reported unconditionally at a low rate: a frame that submits nothing is
+    // exactly the case worth seeing, so this must not be conditional on
+    // something having gone wrong.
     ++g_drawStatsFrame;
-    const uint32_t dropped = g_drawStats.requested - g_drawStats.submitted;
-    if (g_drawStatsFrame <= 3 || (dropped && (g_drawStatsFrame % 300) == 0))
+    if (g_drawStatsFrame <= 3 || (g_drawStatsFrame % 240) == 0)
     {
-        LOGI("frame %u: %u draws requested, %u submitted, dropped %u (pipeline %u, pass %u, ring %u, descriptor %u)",
+        const uint32_t dropped = g_drawStats.requested - g_drawStats.submitted;
+        LOGI("frame %u: %u draws requested, %u submitted, dropped %u (pipeline %u, pass %u, ring %u, descriptor %u); "
+             "viewport %.1f,%.1f %.1fx%.1f z %.2f..%.2f",
              g_drawStatsFrame, g_drawStats.requested, g_drawStats.submitted, dropped, g_drawStats.noPipeline,
-             g_drawStats.noPass, g_drawStats.noRingSpace, g_drawStats.noDescriptor);
+             g_drawStats.noPass, g_drawStats.noRingSpace, g_drawStats.noDescriptor,
+             g_drawStats.haveViewport ? g_drawStats.viewport.x : -1.0f,
+             g_drawStats.haveViewport ? g_drawStats.viewport.y : -1.0f,
+             g_drawStats.haveViewport ? g_drawStats.viewport.width : -1.0f,
+             g_drawStats.haveViewport ? g_drawStats.viewport.height : -1.0f,
+             g_drawStats.haveViewport ? g_drawStats.viewport.minZ : -1.0f,
+             g_drawStats.haveViewport ? g_drawStats.viewport.maxZ : -1.0f);
+        if (!g_frameOpen)
+            LOGI("frame %u: nothing opened a render pass, so no image is presented", g_drawStatsFrame);
     }
     g_drawStats = DrawStats{};
 

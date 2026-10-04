@@ -1677,11 +1677,13 @@ void __cdecl SND_SetData(MssSoundCOD4 *mssSound, void *srcData)
         // low-pass-filtered resample would sound better, but this matches WORK.md Phase 3's
         // stated scope - revisit if downsampled loaded sounds turn out to sound too aliased.
         //
-        // info.samples comes straight out of the fastfile and is not
-        // guaranteed to agree with data_len. Reading frames that were never
-        // loaded walks off the end of the zone block, which is how this
-        // crashed on a phone; believe the byte count, not the frame count.
-        uint32_t srcFrameCount = mssSound->info.samples;
+        // info.samples counts samples across all channels, not frames: a
+        // stereo sound of 498744 bytes reports 249372, which is 124686
+        // frames. Walking it as frames reads twice what was loaded, off the
+        // end of the zone block - that is what took the process down on a
+        // phone. Derive the frame count from the byte count instead, and keep
+        // info.samples in the same units on the way out.
+        uint32_t srcFrameCount = mssSound->info.samples / channels;
         const uint32_t availableFrames = mssSound->info.data_len / bytesPerFrame;
         if (srcFrameCount > availableFrames)
         {
@@ -1719,7 +1721,7 @@ void __cdecl SND_SetData(MssSoundCOD4 *mssSound, void *srcData)
             }
 
             mssSound->info.rate = rate;
-            mssSound->info.samples = frameCount;
+            mssSound->info.samples = frameCount * channels;
             mssSound->info.data_len = newDataLen;
             resampled = true;
         }

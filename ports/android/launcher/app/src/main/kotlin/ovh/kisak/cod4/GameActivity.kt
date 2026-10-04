@@ -171,7 +171,13 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
 
     private fun buildCommandLine(): String {
         val builder = StringBuilder()
-        builder.append("+set fs_basepath \"").append(GameDataStore.root(this).absolutePath).append("\" ")
+        // canonicalPath, not absolutePath: /data/user/0/<pkg> is a symlink to
+        // /data/data/<pkg>, and the engine derives other search paths from
+        // getcwd(), which reports the resolved form. Two spellings of one
+        // directory make it mount every iwd twice.
+        val root = GameDataStore.root(this)
+        val rootPath = runCatching { root.canonicalPath }.getOrElse { root.absolutePath }
+        builder.append("+set fs_basepath \"").append(rootPath).append("\" ")
         GameDataStore.status(this).language?.let {
             builder.append("+set loc_language ").append(languageIndex(it)).append(' ')
         }

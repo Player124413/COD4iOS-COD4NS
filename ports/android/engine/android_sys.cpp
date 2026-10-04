@@ -63,6 +63,7 @@ void KisakAndroid_ControllerFrame();
 
 #include <pthread.h>
 #include <thread>
+#include <limits.h>
 #include <unistd.h>
 #include <sys/system_properties.h>
 
@@ -693,6 +694,13 @@ int KisakAndroid_RunEngine(const char *commandLine)
     // Do that too, and set the variable as well, so a later caller cannot
     // depend on the working directory having survived.
     const char *gameData = KisakAndroid_GameDataPath();
+    // Resolve it first. The launcher reports /data/user/0/<pkg>/..., which is
+    // a symlink to /data/data/<pkg>/...; getcwd() below reports the latter,
+    // and the engine would treat the two spellings as separate search paths
+    // and index every iwd twice.
+    char resolved[PATH_MAX];
+    if (gameData && *gameData && realpath(gameData, resolved))
+        gameData = resolved;
     if (!gameData || !*gameData || chdir(gameData) != 0)
     {
         char message[512];
