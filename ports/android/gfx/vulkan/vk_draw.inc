@@ -56,6 +56,9 @@ struct DrawStats
     uint32_t noPass;
     uint32_t noRingSpace;
     uint32_t noDescriptor;
+    // Peak bytes taken from one frame's upload ring. Reported so a frame that
+    // is merely close to exhausting it is visible before it starts dropping.
+    VkDeviceSize ringHighWater;
     // Draws that bound no texture at all, so the sampler bindings the shader
     // declares could not be filled even with a stand-in.
     uint32_t noTexture;
@@ -675,19 +678,37 @@ VkSampler GetSampler(const SamplerState &sampler, bool shadow)
 // Upload ring
 
 // Suballocates from this frame's upload buffer. Returns the byte offset, or
-// SIZE_MAX if the ring is exhausted - which means the frame is drawing more
-// dynamic data than kUploadRingBytes and the draw is dropped rather than
+// VK_WHOLE_SIZE if the ring is exhausted - which means the frame is drawing
+// more dynamic data than kUploadRingBytes and the draw is dropped rather than
 // corrupting another draw's data.
-VkDeviceSize RingAllocate(VkDeviceSize size, VkDeviceSize alignment, void **mapped)
+//
+// 'span' is how far the GPU will read from the returned offset, which is not
+// always how much the allocation consumes. A constant buffer descriptor has a
+// fixed range shared by every draw, so it reads the full range even when only
+// the first few registers were written; the tail of the ring has to keep room
+// for that range or the read runs off the end of the buffer.
+VkDeviceSize RingAllocate(VkDeviceSize size, VkDeviceSize alignment, void **mapped,
+                          VkDeviceSize span = 0)
 {
     FrameContext &frame = Frame();
+    if (span < size)
+        span = size;
     const VkDeviceSize aligned = (frame.uploadOffset + alignment - 1) & ~(alignment - 1);
-    if (aligned + size > kUploadRingBytes)
+    if (aligned + span > kUploadRingBytes)
     {
-        LOGE("upload ring exhausted (%llu bytes requested)", static_cast<unsigned long long>(size));
+        // One line per frame: this fires on every draw once it starts, and
+        // thousands of identical lines cost more than the frame they explain.
+        if (!g_drawStats.noRingSpace)
+            LOGE("upload ring exhausted at %llu/%llu bytes (%llu more requested); "
+                 "draws are being dropped",
+                 static_cast<unsigned long long>(frame.uploadOffset),
+                 static_cast<unsigned long long>(kUploadRingBytes),
+                 static_cast<unsigned long long>(span));
         return VK_WHOLE_SIZE;
     }
     frame.uploadOffset = aligned + size;
+    if (frame.uploadOffset > g_drawStats.ringHighWater)
+        g_drawStats.ringHighWater = frame.uploadOffset;
     *mapped = static_cast<uint8_t *>(frame.uploadMemory.mapped) + aligned;
     return aligned;
 }
@@ -925,32 +946,38 @@ bool BindDrawState(const DrawState &state, Primitive primitive)
         g.deviceProperties.limits.minUniformBufferOffsetAlignment, 16);
     if (state.vertexConstants)
     {
+        // Only the registers the shader declares are uploaded: all 256 float4s
+        // is 4 KB per draw for shaders that typically read a dozen. This used
+        // to shorten the memcpy but still reserve the full 4 KB, so the ring
+        // filled at the untrimmed rate and a gameplay frame - which draws far
+        // more than a menu - ran it dry and lost every draw after that point.
+        const std::size_t used = std::max<std::size_t>(
+            state.vertexShader ? std::min<std::size_t>(state.vertexShader->constantCount, 256) * 16
+                               : kVertexConstantBytes,
+            16);
         void *mapped = nullptr;
-        const VkDeviceSize offset = RingAllocate(kVertexConstantBytes, alignment, &mapped);
+        const VkDeviceSize offset = RingAllocate(used, alignment, &mapped, kVertexConstantBytes);
         if (offset == VK_WHOLE_SIZE)
         {
             ++g_drawStats.noRingSpace;
             return false;
         }
-        // Only the registers the shader declares are copied: uploading all
-        // 256 float4s per draw is 4 KB of memory traffic for shaders that
-        // typically read a dozen.
-        const std::size_t used =
-            state.vertexShader ? std::min<std::size_t>(state.vertexShader->constantCount, 256) * 16 : kVertexConstantBytes;
         std::memcpy(mapped, state.vertexConstants, used);
         vertexOffset = static_cast<uint32_t>(offset);
     }
     if (state.pixelConstants)
     {
+        const std::size_t used = std::max<std::size_t>(
+            state.pixelShader ? std::min<std::size_t>(state.pixelShader->constantCount, 224) * 16
+                              : kFragmentConstantBytes,
+            16);
         void *mapped = nullptr;
-        const VkDeviceSize offset = RingAllocate(kFragmentConstantBytes, alignment, &mapped);
+        const VkDeviceSize offset = RingAllocate(used, alignment, &mapped, kFragmentConstantBytes);
         if (offset == VK_WHOLE_SIZE)
         {
             ++g_drawStats.noRingSpace;
             return false;
         }
-        const std::size_t used =
-            state.pixelShader ? std::min<std::size_t>(state.pixelShader->constantCount, 224) * 16 : kFragmentConstantBytes;
         std::memcpy(mapped, state.pixelConstants, used);
         fragmentOffset = static_cast<uint32_t>(offset);
     }
@@ -1339,9 +1366,12 @@ void Present(const TargetBinding &backBuffer)
     {
         const uint32_t dropped = g_drawStats.requested - g_drawStats.submitted;
         LOGI("frame %u: %u draws requested, %u submitted, dropped %u (pipeline %u, pass %u, ring %u, descriptor %u), %u untextured; "
+             "ring peak %llu/%llu bytes; "
              "viewport %.1f,%.1f %.1fx%.1f z %.2f..%.2f",
              g_drawStatsFrame, g_drawStats.requested, g_drawStats.submitted, dropped, g_drawStats.noPipeline,
              g_drawStats.noPass, g_drawStats.noRingSpace, g_drawStats.noDescriptor, g_drawStats.noTexture,
+             static_cast<unsigned long long>(g_drawStats.ringHighWater),
+             static_cast<unsigned long long>(kUploadRingBytes),
              g_drawStats.haveViewport ? g_drawStats.viewport.x : -1.0f,
              g_drawStats.haveViewport ? g_drawStats.viewport.y : -1.0f,
              g_drawStats.haveViewport ? g_drawStats.viewport.width : -1.0f,

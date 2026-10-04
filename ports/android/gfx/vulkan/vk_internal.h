@@ -35,7 +35,11 @@ inline constexpr uint32_t kFramesInFlight = 2;
 // out of a ring rather than fresh allocations. 8 MB per frame covers the
 // heaviest frames the engine produces, including the HUD, which draws
 // everything through DrawPrimitiveUP.
-inline constexpr VkDeviceSize kUploadRingBytes = 8 * 1024 * 1024;
+// Per frame in flight, so twice this is resident. A gameplay frame draws far
+// more than a menu one, and running dry costs every draw after that point, so
+// the headroom is worth more than the megabytes on any device this port
+// targets. "ring peak" in the per-frame log says how much is really used.
+inline constexpr VkDeviceSize kUploadRingBytes = 16 * 1024 * 1024;
 
 struct MemoryBlock
 {
