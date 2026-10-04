@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <android/log.h>
+
 #include <cstddef>
 
 // Sets the file to write. Must be called before KisakAndroid_LogOpen(); the
@@ -26,6 +28,12 @@ void KisakAndroid_LogOpen();
 
 void KisakAndroid_LogWrite(const char *text);
 void KisakAndroid_LogPrintf(const char *format, ...) __attribute__((format(printf, 1, 2)));
+
+// Mirrors one of the port's own __android_log_print lines into the log file,
+// prefixed with its tag and newline-terminated. Without this the renderer's
+// diagnostics only ever reach logcat, which a player cannot export - see the
+// KISAK_LOG* macros below.
+void KisakAndroid_LogTagged(const char *tag, const char *format, ...) __attribute__((format(printf, 2, 3)));
 void KisakAndroid_LogFlush();
 
 // Appends the calling thread's stack to the log. bionic has no
@@ -37,3 +45,19 @@ void KisakAndroid_LogBacktrace();
 // faulting address and a backtrace to the log, then lets the default handler
 // run so the system still produces its tombstone.
 void KisakAndroid_InstallCrashHandler();
+
+// Log to logcat and to the exportable log file at once. Subsystems define
+// their own LOGI/LOGE in terms of these so a bug report carries the renderer,
+// video and networking diagnostics too.
+#define KISAK_LOGI(tag, ...)                                                                                           \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        __android_log_print(ANDROID_LOG_INFO, (tag), __VA_ARGS__);                                                     \
+        KisakAndroid_LogTagged((tag), __VA_ARGS__);                                                                    \
+    } while (0)
+#define KISAK_LOGE(tag, ...)                                                                                           \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        __android_log_print(ANDROID_LOG_ERROR, (tag), __VA_ARGS__);                                                     \
+        KisakAndroid_LogTagged((tag), __VA_ARGS__);                                                                    \
+    } while (0)

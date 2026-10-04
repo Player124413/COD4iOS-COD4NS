@@ -21,6 +21,8 @@
 #include "../../ios/engine/video_player_apple.h"
 
 #include <android/log.h>
+
+#include "../platform/android_log.h"
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaFormat.h>
@@ -32,8 +34,8 @@
 #include <string>
 #include <vector>
 
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "KisakCOD-video", __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "KisakCOD-video", __VA_ARGS__)
+#define LOGI(...) KISAK_LOGI("KisakCOD-video", __VA_ARGS__)
+#define LOGE(...) KISAK_LOGE("KisakCOD-video", __VA_ARGS__)
 
 namespace {
 

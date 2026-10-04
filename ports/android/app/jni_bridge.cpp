@@ -41,8 +41,8 @@ void KisakAndroid_GamepadAxes(float leftX, float leftY, float rightX, float righ
                               float rightTrigger);
 bool KisakAndroid_GamepadPresent();
 
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "KisakCOD", __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "KisakCOD", __VA_ARGS__)
+#define LOGI(...) KISAK_LOGI("KisakCOD", __VA_ARGS__)
+#define LOGE(...) KISAK_LOGE("KisakCOD", __VA_ARGS__)
 
 namespace {
 

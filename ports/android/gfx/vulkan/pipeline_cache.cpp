@@ -1,6 +1,8 @@
 #include "pipeline_cache.h"
 
 #include <android/log.h>
+
+#include "../../platform/android_log.h"
 #include <shaderc/shaderc.hpp>
 
 #include <cstdio>
@@ -10,8 +12,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "KisakCOD-vk", __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "KisakCOD-vk", __VA_ARGS__)
+#define LOGI(...) KISAK_LOGI("KisakCOD-vk", __VA_ARGS__)
+#define LOGE(...) KISAK_LOGE("KisakCOD-vk", __VA_ARGS__)
 
 namespace kisak::vk::pipeline_cache {
 

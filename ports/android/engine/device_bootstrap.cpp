@@ -29,6 +29,8 @@
 #include "../gfx/gpu_backend.h"
 
 #include <android/log.h>
+
+#include "../platform/android_log.h"
 #include <sys/system_properties.h>
 
 #include <cstdio>
@@ -36,7 +38,7 @@
 #include <cstring>
 #include <string>
 
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "KisakCOD-perf", __VA_ARGS__)
+#define LOGI(...) KISAK_LOGI("KisakCOD-perf", __VA_ARGS__)
 
 namespace {
 

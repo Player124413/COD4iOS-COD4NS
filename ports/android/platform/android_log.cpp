@@ -423,6 +423,25 @@ void KisakAndroid_LogBacktrace()
     WriteBacktrace();
 }
 
+void KisakAndroid_LogTagged(const char *tag, const char *format, ...)
+{
+    char message[2048];
+    va_list args;
+    va_start(args, format);
+    const int written = vsnprintf(message, sizeof(message), format, args);
+    va_end(args);
+    if (written < 0)
+        return;
+
+    // These call sites come from __android_log_print, which supplies no
+    // trailing newline of its own.
+    const size_t length = strlen(message);
+    const char *terminator = (length > 0 && message[length - 1] == '\n') ? "" : "\n";
+    char line[2176];
+    snprintf(line, sizeof(line), "[%s] %s%s", tag ? tag : "KisakCOD", message, terminator);
+    KisakAndroid_LogWrite(line);
+}
+
 void KisakAndroid_LogFlush()
 {
     // Nothing is buffered in user space, so this only has to push the page

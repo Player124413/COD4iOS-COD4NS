@@ -42,6 +42,23 @@ struct BoundState
 };
 
 BoundState g_bound;
+
+// A draw that cannot get a pipeline, a render pass, ring space or a
+// descriptor set is dropped on the floor, which looks exactly like a black
+// screen from the outside. Count the reasons and report them, otherwise the
+// only way to tell "the engine submitted nothing" from "every draw was
+// rejected" is a debugger on the device.
+struct DrawStats
+{
+    uint32_t requested;
+    uint32_t submitted;
+    uint32_t noPipeline;
+    uint32_t noPass;
+    uint32_t noRingSpace;
+    uint32_t noDescriptor;
+};
+DrawStats g_drawStats;
+uint32_t g_drawStatsFrame;
 bool g_frameOpen = false;
 
 // ---------------------------------------------------------------------------
@@ -806,7 +823,10 @@ bool BindDrawState(const DrawState &state, Primitive primitive)
 
     VkPipeline pipeline = GetPipeline(state, primitive, g.activePass);
     if (pipeline == VK_NULL_HANDLE)
+    {
+        ++g_drawStats.noPipeline;
         return false;
+    }
     if (pipeline != g_bound.pipeline)
     {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -823,7 +843,10 @@ bool BindDrawState(const DrawState &state, Primitive primitive)
         void *mapped = nullptr;
         const VkDeviceSize offset = RingAllocate(kVertexConstantBytes, alignment, &mapped);
         if (offset == VK_WHOLE_SIZE)
+        {
+            ++g_drawStats.noRingSpace;
             return false;
+        }
         // Only the registers the shader declares are copied: uploading all
         // 256 float4s per draw is 4 KB of memory traffic for shaders that
         // typically read a dozen.
@@ -837,7 +860,10 @@ bool BindDrawState(const DrawState &state, Primitive primitive)
         void *mapped = nullptr;
         const VkDeviceSize offset = RingAllocate(kFragmentConstantBytes, alignment, &mapped);
         if (offset == VK_WHOLE_SIZE)
+        {
+            ++g_drawStats.noRingSpace;
             return false;
+        }
         const std::size_t used =
             state.pixelShader ? std::min<std::size_t>(state.pixelShader->constantCount, 224) * 16 : kFragmentConstantBytes;
         std::memcpy(mapped, state.pixelConstants, used);
@@ -846,7 +872,10 @@ bool BindDrawState(const DrawState &state, Primitive primitive)
 
     VkDescriptorSet set = BuildDescriptorSet(state, vertexOffset, fragmentOffset);
     if (set == VK_NULL_HANDLE)
+    {
+        ++g_drawStats.noDescriptor;
         return false;
+    }
     const uint32_t dynamicOffsets[2] = { vertexOffset, fragmentOffset };
     // Rebound unconditionally, because the dynamic offsets change per draw
     // even when the set does not.
@@ -1034,8 +1063,15 @@ void Draw(const DrawState &state, Primitive primitive, uint32_t primitiveCount, 
     EnsureFrameOpen();
 
     TransitionSampledTextures(state);
-    if (!BeginPass(state) || !BindDrawState(state, primitive))
+    ++g_drawStats.requested;
+    if (!BeginPass(state))
+    {
+        ++g_drawStats.noPass;
         return;
+    }
+    if (!BindDrawState(state, primitive))
+        return;
+    ++g_drawStats.submitted;
 
     const uint32_t vertices = VertexCount(primitive, primitiveCount);
     if (indexed)
@@ -1205,6 +1241,17 @@ void Blit(const TargetBinding &source, const TargetBinding &destination)
 
 void Present(const TargetBinding &backBuffer)
 {
+    // Report the first few frames, then only when draws are being dropped.
+    ++g_drawStatsFrame;
+    const uint32_t dropped = g_drawStats.requested - g_drawStats.submitted;
+    if (g_drawStatsFrame <= 3 || (dropped && (g_drawStatsFrame % 300) == 0))
+    {
+        LOGI("frame %u: %u draws requested, %u submitted, dropped %u (pipeline %u, pass %u, ring %u, descriptor %u)",
+             g_drawStatsFrame, g_drawStats.requested, g_drawStats.submitted, dropped, g_drawStats.noPipeline,
+             g_drawStats.noPass, g_drawStats.noRingSpace, g_drawStats.noDescriptor);
+    }
+    g_drawStats = DrawStats{};
+
     if (!Available())
         return;
     std::lock_guard<std::mutex> lock(g.mutex);

@@ -13,6 +13,8 @@
 
 #include <android/log.h>
 
+#include "android_log.h"
+
 #include <atomic>
 #include <cerrno>
 #include <cstring>
@@ -30,8 +32,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "KisakCOD-master", __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "KisakCOD-master", __VA_ARGS__)
+#define LOGI(...) KISAK_LOGI("KisakCOD-master", __VA_ARGS__)
+#define LOGE(...) KISAK_LOGE("KisakCOD-master", __VA_ARGS__)
 
 namespace {
 
