@@ -36,6 +36,7 @@
 #include <android/native_window.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <functional>
 

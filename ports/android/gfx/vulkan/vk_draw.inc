@@ -59,6 +59,15 @@ struct DrawStats
     // Draws that bound no texture at all, so the sampler bindings the shader
     // declares could not be filled even with a stand-in.
     uint32_t noTexture;
+    // Which images the frame's passes actually rendered into. Every counter
+    // above can read perfectly while the engine draws into one image and
+    // Present copies a different, untouched one to the screen.
+    static constexpr uint32_t kMaxTracked = 4;
+    const void *targets[kMaxTracked];
+    uint32_t targetWidth[kMaxTracked];
+    uint32_t targetHeight[kMaxTracked];
+    uint32_t targetCount;
+    uint32_t passes;
     bool haveViewport;
     Viewport viewport;
 };
@@ -346,6 +355,21 @@ bool BeginPass(const DrawState &state)
     info.framebuffer = framebuffer;
     info.renderArea = { { 0, 0 }, extent };
     vkCmdBeginRenderPass(Frame().commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
+
+    ++g_drawStats.passes;
+    if (Texture *primary = state.color[0].texture)
+    {
+        bool known = false;
+        for (uint32_t i = 0; i < g_drawStats.targetCount && !known; ++i)
+            known = g_drawStats.targets[i] == primary;
+        if (!known && g_drawStats.targetCount < DrawStats::kMaxTracked)
+        {
+            const uint32_t slot = g_drawStats.targetCount++;
+            g_drawStats.targets[slot] = primary;
+            g_drawStats.targetWidth[slot] = primary->desc.width;
+            g_drawStats.targetHeight[slot] = primary->desc.height;
+        }
+    }
 
     g.activePass = pass;
     g.activeFramebuffer = framebuffer;
@@ -1297,6 +1321,24 @@ void Present(const TargetBinding &backBuffer)
         // The blit at the end of this function is what actually puts anything
         // on screen. A null target, or a zero-sized source, is a black screen
         // no matter how much was drawn into it.
+        {
+            // The decisive comparison: if nothing rendered into the image
+            // Present copies from, every other number here can be perfect
+            // and the screen is still black.
+            bool drewIntoPresented = false;
+            for (uint32_t i = 0; i < g_drawStats.targetCount; ++i)
+                drewIntoPresented = drewIntoPresented || g_drawStats.targets[i] == backBuffer.texture;
+            char rendered[160];
+            int at = 0;
+            for (uint32_t i = 0; i < g_drawStats.targetCount && at < static_cast<int>(sizeof(rendered)) - 1; ++i)
+                at += snprintf(rendered + at, sizeof(rendered) - at, "%s%p %ux%u", i ? ", " : "",
+                               g_drawStats.targets[i], g_drawStats.targetWidth[i], g_drawStats.targetHeight[i]);
+            if (at == 0)
+                snprintf(rendered, sizeof(rendered), "none");
+            LOGI("frame %u: %u passes into [%s]; presenting %p; the presented image %s drawn into",
+                 g_drawStatsFrame, g_drawStats.passes, rendered, static_cast<const void *>(backBuffer.texture),
+                 drewIntoPresented ? "WAS" : "WAS NOT");
+        }
         LOGI("frame %u: target %s %ux%u, blit source %ux%u, swapchain %ux%u", g_drawStatsFrame,
              backBuffer.texture ? "ok" : "MISSING",
              backBuffer.texture ? backBuffer.texture->desc.width : 0u,
