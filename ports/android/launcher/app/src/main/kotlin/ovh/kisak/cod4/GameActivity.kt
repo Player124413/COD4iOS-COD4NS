@@ -480,8 +480,25 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback, Choreographer.
         runOnUiThread {
             val manager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             if (visible) {
+                // The IME only attaches to a focused view, and focus does not
+                // land synchronously, so showSoftInput can report false here
+                // and simply do nothing. Ask again once the focus change has
+                // been through the view hierarchy.
                 surfaceView.requestFocus()
-                manager.showSoftInput(surfaceView, InputMethodManager.SHOW_IMPLICIT)
+                if (!manager.showSoftInput(surfaceView, InputMethodManager.SHOW_IMPLICIT)) {
+                    Log.i(TAG, "IME declined the first showSoftInput; retrying after focus")
+                    surfaceView.post {
+                        surfaceView.requestFocus()
+                        val again = manager.showSoftInput(surfaceView, InputMethodManager.SHOW_IMPLICIT)
+                        // Last resort for the immersive case, where an implicit
+                        // request over hidden system bars is often dropped.
+                        if (!again) {
+                            Log.i(TAG, "IME still declined; forcing via insets controller")
+                            WindowInsetsControllerCompat(window, surfaceView)
+                                .show(WindowInsetsCompat.Type.ime())
+                        }
+                    }
+                }
             } else {
                 manager.hideSoftInputFromWindow(surfaceView.windowToken, 0)
             }

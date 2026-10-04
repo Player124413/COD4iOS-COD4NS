@@ -528,11 +528,11 @@ void IN_Frame()
     // keyboard, so a phone with no hardware keys could not type a profile
     // name at all.
     {
-        static int shown = -1;
         const int editing = KisakAndroid_TextInputActive() ? 1 : 0;
-        if (editing != shown)
+        if (editing != g_softKeyboardVisible.load(std::memory_order_acquire))
         {
-            shown = editing;
+            KisakAndroid_LogPrintf("text field %s editing; %s keyboard\n",
+                                   editing ? "began" : "ended", editing ? "showing" : "hiding");
             KisakAndroid_SetSoftKeyboardVisible(editing);
         }
     }
@@ -574,9 +574,17 @@ void __cdecl IN_SetForegroundWindow() {}
 bool __cdecl IN_IsForegroundWindow() { return g_foreground.load(std::memory_order_acquire); }
 void IN_ActivateMouse(qboolean force) { (void)force; }
 
+// src/ui/ui_shared.cpp. Set by Item_TextField_BeginEdit when a field takes
+// focus and cleared when editing ends; this is the engine's own notion of
+// "text is being typed", and the same global the iOS port reads.
+extern int g_editingField;
+
 int KisakAndroid_TextInputActive()
 {
-    return g_softKeyboardVisible.load(std::memory_order_acquire);
+    // Must be the engine's state, not g_softKeyboardVisible: that one only
+    // records what we last asked the IME for, so returning it here made the
+    // keyboard poll read back its own output and never fire.
+    return g_editingField;
 }
 
 void KisakAndroid_SetSoftKeyboardVisible(int visible)
