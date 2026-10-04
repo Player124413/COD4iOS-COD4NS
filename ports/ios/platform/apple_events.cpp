@@ -1,3 +1,13 @@
+// Win32 event objects for the ports, replacing the CreateEvent/SetEvent
+// family in src/qcommon/threads.cpp: manual-reset broadcast, auto-reset
+// single-consumer signalling, coalescing repeated signals, zero-timeout
+// polling and monotonic deadlines, on std::condition_variable.
+//
+// Shared by iOS and Android. condition_variable::wait_until on a steady_clock
+// deadline uses CLOCK_MONOTONIC on both libc++ and bionic, so these waits are
+// unaffected by the system clock jumping, which it does on a phone whenever
+// NTP or the user changes it.
+
 #include <universal/q_shared.h>
 #include <qcommon/threads.h>
 #include "apple_platform.h"

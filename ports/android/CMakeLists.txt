@@ -247,7 +247,6 @@ set(KISAK_ANDROID_PORT_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/engine/android_input.cpp"
     # Builds the DeviceDescriptor the performance subsystem reasons about.
     "${CMAKE_CURRENT_LIST_DIR}/engine/device_bootstrap.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/platform/android_events.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_timing.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_critical_sections.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_virtual_memory.cpp"
@@ -255,6 +254,10 @@ set(KISAK_ANDROID_PORT_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_log.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/platform/android_engine_mode.cpp"
     # Shared with the iOS port, unchanged.
+    # Win32 event objects. Android used to carry a renamed copy of this file;
+    # it was identical line for line, and the iOS one is covered by
+    # ports/ios/platform/tests. One implementation, one set of semantics.
+    "${IOS_DIR}/platform/apple_events.cpp"
     "${IOS_DIR}/engine/controller_input.cpp"
     "${IOS_DIR}/engine/controller_icons.cpp"
     "${IOS_DIR}/engine/cinematic_apple.cpp"

@@ -6,13 +6,9 @@
 // hooks the app layer needs. Plain declarations so both the C++ engine (built
 // with the Windows prelude) and the JNI glue can include this header.
 
-// ---------------------------------------------------------------------------
-// Events (ports/android/platform/android_events.cpp)
-
-// Release an event only after all users have stopped accessing it. The Windows
-// backend keeps its events until process exit; Android also needs explicit
-// teardown when the activity is destroyed and the engine unloaded.
-void Sys_DestroyAndroidEvent(void **event);
+// Win32 event objects come from ports/ios/platform/apple_events.cpp, which
+// both ports compile: the implementation is plain POSIX and the semantics
+// must not drift between them.
 
 // ---------------------------------------------------------------------------
 // Paths (ports/android/platform/android_storage.cpp)

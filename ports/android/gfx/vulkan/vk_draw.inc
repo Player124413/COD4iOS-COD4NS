@@ -61,6 +61,7 @@ struct DrawStats
 };
 DrawStats g_drawStats;
 uint32_t g_drawStatsFrame;
+uint32_t g_emptyFrames;
 
 // Records what the engine asked for, so a frame that produced nothing can be
 // told apart from a frame whose geometry was transformed into nothing.
@@ -1278,7 +1279,7 @@ void Present(const TargetBinding &backBuffer)
              g_drawStats.haveViewport ? g_drawStats.viewport.minZ : -1.0f,
              g_drawStats.haveViewport ? g_drawStats.viewport.maxZ : -1.0f);
         if (!g_frameOpen)
-            LOGI("frame %u: nothing opened a render pass, so no image is presented", g_drawStatsFrame);
+            LOGI("frame %u: nothing opened a render pass", g_drawStatsFrame);
         // The blit at the end of this function is what actually puts anything
         // on screen. A null target, or a zero-sized source, is a black screen
         // no matter how much was drawn into it.
@@ -1288,13 +1289,29 @@ void Present(const TargetBinding &backBuffer)
              backBuffer.texture ? backBuffer.texture->desc.height : 0u,
              g.renderWidth, g.renderHeight, g.swapchainExtent.width, g.swapchainExtent.height);
     }
+    if (g_drawStats.requested == 0)
+    {
+        ++g_emptyFrames;
+        if (g_emptyFrames == 1 || g_emptyFrames == 30 || (g_emptyFrames % 600) == 0)
+            LOGE("the engine submitted no draw calls (%u frame%s in a row)", g_emptyFrames,
+                 g_emptyFrames == 1 ? "" : "s");
+    }
+    else if (g_emptyFrames)
+    {
+        LOGI("drawing resumed after %u empty frame%s", g_emptyFrames, g_emptyFrames == 1 ? "" : "s");
+        g_emptyFrames = 0;
+    }
     g_drawStats = DrawStats{};
 
     if (!Available())
         return;
     std::lock_guard<std::mutex> lock(g.mutex);
-    if (!g_frameOpen)
-        return;
+    // A frame the engine left empty still has to reach the screen. Bailing
+    // out here presents nothing at all, so the surface keeps whatever it last
+    // held - undefined memory on Android - and the result is a frozen image
+    // that is indistinguishable from a rendered one. Open a frame and let the
+    // blit below put a defined picture up.
+    EnsureFrameOpen();
     EndPass();
 
     FrameContext &frame = Frame();
