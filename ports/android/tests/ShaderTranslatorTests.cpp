@@ -160,9 +160,17 @@ void TestVertexShaderBasics()
     CHECK_CONTAINS(source, "dot(vec4(attr0), c[3])");
     // Direct3D's half-pixel offset is applied in clip space, scaled by w.
     CHECK_CONTAINS(source, "oPos.xy += params.halfPixel * oPos.w");
+    // Direct3D 9 clip space is Y-up and Vulkan is Y-down, so Y must be
+    // negated. Without it the image is mirrored vertically, which also
+    // reverses every triangle's winding and turns front faces into back
+    // faces - with culling enabled the entire scene is discarded while the
+    // draw counters still report every call submitted. This assertion used
+    // to demand the opposite, which is how the port shipped a black screen.
+    CHECK_CONTAINS(source, "oPos.y = -oPos.y");
+    // The flip has to come after the half-pixel offset, which is expressed
+    // in Direct3D space.
+    CHECK(source.find("params.halfPixel") < source.find("oPos.y = -oPos.y"));
     CHECK_CONTAINS(source, "gl_Position = oPos");
-    // Vulkan clip space is already Y-down like Direct3D; a flip would be a bug.
-    CHECK_LACKS(source, "oPos.y = -oPos.y");
 }
 
 void TestPixelShaderBasics()

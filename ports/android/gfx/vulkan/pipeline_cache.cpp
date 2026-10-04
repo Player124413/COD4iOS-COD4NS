@@ -23,7 +23,7 @@ namespace {
 // cached SPIR-V wrong. Forgetting to bump this produces the worst class of
 // bug in the port: a shader fix that works on a clean install and not on an
 // upgrade.
-constexpr uint32_t kShaderCacheVersion = 3;
+constexpr uint32_t kShaderCacheVersion = 4;
 constexpr uint32_t kShaderCacheMagic = 0x4B534843; // "KSHC"
 
 struct ShaderCacheHeader

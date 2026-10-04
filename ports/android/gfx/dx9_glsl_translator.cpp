@@ -596,6 +596,14 @@ private:
             // with w. Unlike Metal, no Y flip is needed: Vulkan's clip space
             // already points down, matching Direct3D.
             Line("oPos.xy += params.halfPixel * oPos.w;");
+            // Direct3D 9 clip space has +Y up, Vulkan has +Y down, so the
+            // same geometry lands mirrored unless Y is negated here. The
+            // mirroring also reverses the winding of every triangle, which
+            // turns every front face into a back face: with culling on, the
+            // whole scene is discarded and the draw counters still read
+            // clean. Half-pixel is applied above, in Direct3D space, so this
+            // has to come after it.
+            Line("oPos.y = -oPos.y;");
             Line("gl_Position = oPos;");
         }
         else
