@@ -381,6 +381,7 @@ void NET_Sleep(int msec)
     if (msec > 0)
         Sys_Sleep(static_cast<unsigned int>(msec));
 }
+
 #else
 void __cdecl NET_Init()
 {
@@ -391,6 +392,47 @@ void __cdecl NET_Init()
                        static_cast<uint16_t>(serverPort->current.integer));
 }
 #endif
+
+// ---------------------------------------------------------------------------
+// Engine thread placement.
+//
+// Sys_CreateThread spawns every engine thread with pthread defaults: no
+// affinity mask and whatever nice value the parent happened to have. The
+// Windows build compensates in Sys_SpawnDatabaseThread with SetThreadPriority;
+// the POSIX path had no equivalent, so on a big.LITTLE phone the scheduler was
+// free to leave the database thread on a little core and keep it there. That
+// thread is the entire critical path during a level load - the main thread
+// does nothing but sleep inside DB_FindXAssetHeader waiting on it - so the
+// scheduler's view of the process as "mostly idle" became self-fulfilling.
+void KisakAndroid_PlaceEngineThread(int threadContext)
+{
+    using kisak::perf::ThreadRole;
+
+    ThreadRole role;
+    switch (threadContext)
+    {
+    case THREAD_CONTEXT_BACKEND:
+        role = ThreadRole::Render;
+        break;
+    case THREAD_CONTEXT_DATABASE:
+    case THREAD_CONTEXT_CINEMATIC:
+        // Worker rather than Background on purpose. Background means the
+        // little cluster at nice +5, which is the right answer for streaming
+        // behind live gameplay and exactly the wrong one for a load the
+        // player is sitting and watching.
+        role = ThreadRole::Worker;
+        break;
+#ifdef KISAK_SP
+    case THREAD_CONTEXT_STREAM:
+        role = ThreadRole::Background;
+        break;
+#endif
+    default:
+        return;
+    }
+
+    kisak::perf::Director().PlaceThread(role);
+}
 
 // ---------------------------------------------------------------------------
 // Remote script debugger: a Windows development tool, never connected here.

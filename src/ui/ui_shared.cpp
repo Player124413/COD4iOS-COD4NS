@@ -1795,7 +1795,7 @@ void __cdecl Script_ExecOnDvarFloatValue(UiContext *dc, itemDef_s *item, const c
 bool __cdecl Script_ExecIfFloatsEqual(const char *dvarValue, const char *testValue)
 {
     float v3; // [esp+4h] [ebp-10h]
-    long double v4; // [esp+8h] [ebp-Ch]
+    double v4; // [esp+8h] [ebp-Ch]
     float v5; // [esp+10h] [ebp-4h]
 
     v4 = atof(testValue);

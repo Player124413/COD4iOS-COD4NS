@@ -953,7 +953,7 @@ void __cdecl CG_DrawCursorhint(
     const float *v14; // r6
     int v15; // r5
     int v16; // r4
-    long double v17; // fp2
+    double v17; // fp2
     char *displayString; // r28
     double heightScale; // fp29
     double widthScale; // fp23
@@ -964,7 +964,7 @@ void __cdecl CG_DrawCursorhint(
     __int64 v25; // r11
     double v26; // fp13
     double v27; // fp0
-    long double v28; // fp2
+    double v28; // fp2
     int cursorHintIcon; // r11
     char *UseString; // r3
     const char *v31; // r30
@@ -1737,8 +1737,8 @@ void __cdecl CG_DrawPlayerAmmoValue(
     Material *material,
     int textStyle)
 {
-    long double v12; // fp2
-    long double v13; // fp2
+    double v12; // fp2
+    double v13; // fp2
     double v14; // fp1
     unsigned int SelectedWeaponIndex; // r3
     int v16; // r30
@@ -2525,8 +2525,8 @@ void __cdecl CG_DrawPlayerStance(
     int32_t textStyle)
 {
 #if 0
-    long double v11; // fp2
-    long double v12; // fp2
+    double v11; // fp2
+    double v12; // fp2
     double v13; // fp31
     int scrPlace; // r7
     const float *v15; // r6
@@ -2543,8 +2543,8 @@ void __cdecl CG_DrawPlayerStance(
     int v26; // r3
     __int128 v27; // r11
     double v28; // fp31
-    long double v29; // fp2
-    long double v30; // fp2
+    double v29; // fp2
+    double v30; // fp2
     int tagmat; // r7
     double origin; // fp8
     double v33; // fp7
@@ -3095,7 +3095,7 @@ void __cdecl CG_OwnerDraw(
     int v65; // r7
     float *v66; // r6
     const float *v67; // r5
-    long double v68; // fp2
+    double v68; // fp2
     bool v69; // [sp+Bh] [-D5h]
     rectDef_s rect; // [sp+60h] [-80h] BYREF
 

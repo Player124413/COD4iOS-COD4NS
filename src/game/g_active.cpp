@@ -588,7 +588,7 @@ void __cdecl ClientThink_real(gentity_s *ent)
     gclient_s *client; // r30
     usercmd_s *p_cmd; // r25
     unsigned int v5; // r11
-    long double v7; // fp2
+    double v7; // fp2
     int eventSequence; // r28
     double v9; // fp0
     int integer; // r11

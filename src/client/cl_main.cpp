@@ -1231,14 +1231,14 @@ void __cdecl CL_PlayLogo_f()
     int v1; // r3
     const char *v2; // r30
     const char *v3; // r3
-    long double v4; // fp2
-    long double v5; // fp2
+    double v4; // fp2
+    double v5; // fp2
     const char *v6; // r3
-    long double v7; // fp2
-    long double v8; // fp2
+    double v7; // fp2
+    double v8; // fp2
     const char *v9; // r3
-    long double v10; // fp2
-    long double v11; // fp2
+    double v10; // fp2
+    double v11; // fp2
     const char *v12; // r3
     const char *v13; // r3
 

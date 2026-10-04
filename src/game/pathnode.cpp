@@ -1037,14 +1037,14 @@ float __cdecl Path_GetDebugStringScale(const float *cameraPos, const float *orig
 
 void __cdecl Path_DrawDebugNodeBox(const pathnode_t *node)
 {
-    long double v5; // fp2
+    double v5; // fp2
     double v6; // fp31
     double v7; // fp12
     double v8; // fp13
-    long double v9; // fp2
+    double v9; // fp2
     double v10; // fp0
     double v11; // fp31
-    long double v12; // fp2
+    double v12; // fp2
     nodeType type; // r11
     float maxs[3]; // [sp+50h] [-70h] BYREF
     float mins[3]; // [sp+60h] [-60h] BYREF
@@ -3406,7 +3406,7 @@ void __cdecl Path_MarkNodeInvalid(pathnode_t *node, team_t eTeam)
 void __cdecl G_SetPathnodeScriptVariable(const char *key, const char *value, pathnode_t *ent)
 {
     unsigned int Field; // r30
-    long double v6; // fp2
+    double v6; // fp2
     int v7; // r3
     unsigned int v8; // r3
     const char *v9; // r3

@@ -499,7 +499,7 @@ int __cdecl PS_ReadString(script_s *script, token_s *token, int quote)
     return 1;
 }
 
-void __cdecl NumberValue(char *string, __int16 subtype, uint32_t *intvalue, long double *floatvalue)
+void __cdecl NumberValue(char *string, __int16 subtype, uint32_t *intvalue, double *floatvalue)
 {
     uint32_t dotfound; // [esp+40h] [ebp-4h]
     char *stringa; // [esp+4Ch] [ebp+8h]
@@ -2021,7 +2021,7 @@ int __cdecl PC_OperatorPriority(int op)
 
 int __cdecl PC_EvaluateTokens(source_s *source, token_s *tokens, int *intvalue, double *floatvalue, int integer)
 {
-    long double v5; // st7
+    double v5; // st7
     bool v7; // [esp+18h] [ebp-DC0h]
     bool v8; // [esp+1Ch] [ebp-DBCh]
     bool v9; // [esp+20h] [ebp-DB8h]
@@ -3602,7 +3602,7 @@ bool __cdecl Eval_EvaluationStep(Eval *eval)
     const char *pExceptionObject; // [esp+84h] [ebp-20h] BYREF
     bool v16; // [esp+8Ah] [ebp-1Ah]
     bool same; // [esp+8Bh] [ebp-19h]
-    long double dQuotientFloor; // [esp+8Ch] [ebp-18h]
+    double dQuotientFloor; // [esp+8Ch] [ebp-18h]
     char *s; // [esp+94h] [ebp-10h]
     int length[2]; // [esp+98h] [ebp-Ch]
     int i; // [esp+A0h] [ebp-4h]
@@ -3780,7 +3780,7 @@ bool __cdecl Eval_EvaluationStep(Eval *eval)
             dQuotientFloor = floor(
                 *(double *)&eval->opStack[4 * eval->valStackPos + 1018]
                 / *(double *)&eval->opStack[4 * eval->valStackPos + 1022]);
-            *(long double *)&eval->opStack[4 * eval->valStackPos + 1018] = *(double *)&eval->opStack[4 * eval->valStackPos
+            *(double *)&eval->opStack[4 * eval->valStackPos + 1018] = *(double *)&eval->opStack[4 * eval->valStackPos
                 + 1018]
                 - *(double *)&eval->opStack[4 * eval->valStackPos
                 + 1022]
@@ -3793,7 +3793,7 @@ bool __cdecl Eval_EvaluationStep(Eval *eval)
         if (eval->opStack[4 * eval->valStackPos + 1016])
             eval->opStack[4 * eval->valStackPos + 1018] <<= eval->opStack[4 * eval->valStackPos + 1022];
         else
-            *(long double *)&eval->opStack[4 * eval->valStackPos + 1018] = pow(
+            *(double *)&eval->opStack[4 * eval->valStackPos + 1018] = pow(
                 2.0,
                 *(double *)&eval->opStack[4 * eval->valStackPos
                 + 1022])
@@ -3806,7 +3806,7 @@ bool __cdecl Eval_EvaluationStep(Eval *eval)
         if (eval->opStack[4 * eval->valStackPos + 1016])
             eval->opStack[4 * eval->valStackPos + 1018] >>= eval->opStack[4 * eval->valStackPos + 1022];
         else
-            *(long double *)&eval->opStack[4 * eval->valStackPos + 1018] = pow(
+            *(double *)&eval->opStack[4 * eval->valStackPos + 1018] = pow(
                 2.0,
                 -*(double *)&eval->opStack[4 * eval->valStackPos + 1022])
             * *(double *)&eval->opStack[4 * eval->valStackPos
@@ -4170,7 +4170,7 @@ int __cdecl PC_Rect_Parse(int handle, rectDef_s *r)
     return 1;
 }
 
-char __cdecl Eval_PushNumber(Eval *eval, long double value)
+char __cdecl Eval_PushNumber(Eval *eval, double value)
 {
     if (!Eval_CanPushValue(eval))
         return 0;

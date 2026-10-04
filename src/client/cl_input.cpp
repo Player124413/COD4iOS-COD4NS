@@ -1135,7 +1135,7 @@ void __cdecl CL_MouseMove(usercmd_s *cmd)
 {
 #if 0
     __int64 oldAngles; // r9
-    long double side; // fp2
+    double side; // fp2
     __int64 forward; // r11
     double up; // fp29
     double v12; // fp30
@@ -1144,9 +1144,9 @@ void __cdecl CL_MouseMove(usercmd_s *cmd)
     double v15; // fp31
     double v16; // r5
     __int64 v17; // r9
-    long double v18; // fp2
+    double v18; // fp2
     int rightmove; // r11
-    long double v28; // fp2
+    double v28; // fp2
     int forwardmove; // r10
     float v30[KEY_FORWARD]; // [sp+50h] [-60h] BYREF
     __int64 v31[6]; // [sp+58h] [-58h] BYREF
@@ -1447,10 +1447,10 @@ int __cdecl CG_HandleLocationSelectionInput(int localClientNum, usercmd_s *cmd)
     double v12; // fp13
     double v13; // fp13
     double v14; // fp1
-    long double v15; // fp2
+    double v15; // fp2
     LocSelInputState locSelInputState; // r11
-    long double v17; // fp2
-    long double v18; // fp2
+    double v17; // fp2
+    double v18; // fp2
 
     if (localClientNum)
         MyAssertHandler(

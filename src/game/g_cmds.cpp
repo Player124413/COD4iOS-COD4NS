@@ -856,8 +856,8 @@ void Cmd_VisionSetNaked_f()
     unsigned int nesting; // r7
     int v1; // r11
     const char *v2; // r3
-    long double v3; // fp2
-    long double v4; // fp2
+    double v3; // fp2
+    double v4; // fp2
     const char *v5; // r4
     int v7; // [sp+50h] [-30h]
 
@@ -912,8 +912,8 @@ void Cmd_VisionSetNight_f()
     unsigned int nesting; // r7
     int v1; // r11
     const char *v2; // r3
-    long double v3; // fp2
-    long double v4; // fp2
+    double v3; // fp2
+    double v4; // fp2
     const char *v5; // r4
     int v7; // [sp+50h] [-30h]
 

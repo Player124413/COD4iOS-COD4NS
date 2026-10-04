@@ -84,6 +84,9 @@ def parse_include(line: str) -> tuple[str, str] | None:
     return None
 
 
+LONG_DOUBLE_RE = re.compile(r"\blong\s+double\b")
+
+
 def check_include_case() -> list[str]:
     # Case-insensitive index of what is actually on disk, per include root.
     index: dict[str, dict[str, str]] = {}
@@ -884,6 +887,34 @@ def check_signed_char() -> list[str]:
     return []
 
 
+def check_long_double() -> list[str]:
+    """Check 12: no `long double` in the decompiled engine.
+
+    IDA emitted `long double` for x86 FPU temporaries and the decompiled code
+    reads them straight back with `*(double *)&v`. That is an identity cast
+    only where `long double` is eight bytes: MSVC x86, and Apple's ARM64 ABI,
+    which is why Windows and iOS never noticed. The generic AArch64 ABI makes
+    `long double` IEEE binary128, so the cast reads the low half of a
+    quad-precision value - near enough always a denormal. An `altertimescale`
+    of 0.25 arrived as -0 and tripped `timescale > 0` in Com_SetTimeScale;
+    `*(long double *)&eval->opStack[...]` wrote sixteen bytes into an int
+    array. Plain `double` is correct on every target the port builds for.
+
+    Ports may still use `long double` deliberately; this only guards src/.
+    """
+    problems = []
+    for root, _dirs, files in os.walk("src"):
+        for name in sorted(files):
+            if not name.endswith(SOURCE_SUFFIXES):
+                continue
+            path = os.path.join(root, name)
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                for number, line in enumerate(handle, 1):
+                    if LONG_DOUBLE_RE.search(line):
+                        problems.append(f"{path}:{number}: {line.strip()}")
+    return problems
+
+
 def main() -> int:
     failed = False
 
@@ -923,6 +954,7 @@ def main() -> int:
         ("Backup rules", check_backup_rules),
         ("Apple-only guard policy", check_apple_only_policy),
         ("Signed char", check_signed_char),
+        ("long double in src/", check_long_double),
     ):
         problems = check()
         if problems:

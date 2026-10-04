@@ -27,7 +27,7 @@ std::uint32_t milliseconds(std::uint64_t ticks)
 }
 }
 
-long double msecPerRawTimerTick;
+double msecPerRawTimerTick;
 double qpc2msec;
 
 double SecondsPerTick()
@@ -39,7 +39,7 @@ double SecondsPerTick()
 void InitTiming()
 {
     const auto &scale = timebase();
-    msecPerRawTimerTick = static_cast<long double>(scale.numer) / scale.denom / 1000000.0L;
+    msecPerRawTimerTick = static_cast<double>(scale.numer) / scale.denom / 1000000.0;
     qpc2msec = static_cast<double>(msecPerRawTimerTick);
 }
 

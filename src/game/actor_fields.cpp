@@ -866,14 +866,14 @@ void __cdecl Cmd_AI_DisplayValue(actor_s *pSelf, unsigned __int8 *pBase, const a
 void __cdecl Cmd_AI_SetValue(actor_s *pSelf, int argc, unsigned __int8 *pBase, const actor_fields_s *pField)
 {
     void(__cdecl * setter)(actor_s *, const actor_fields_s *); // r11
-    long double v9; // fp2
-    long double v10; // fp2
-    long double v11; // fp2
+    double v9; // fp2
+    double v10; // fp2
+    double v11; // fp2
     fieldtype_t type; // r4
-    long double v13; // fp2
+    double v13; // fp2
     int v14; // r29
     int i; // r31
-    long double v16; // fp2
+    double v16; // fp2
     int ofs; // r10
     const char *v18; // r3
     _BYTE v19[24]; // [sp+58h] [-158h] BYREF

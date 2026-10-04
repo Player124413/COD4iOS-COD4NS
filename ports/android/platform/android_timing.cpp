@@ -110,7 +110,7 @@ std::uint32_t Milliseconds(std::uint64_t ticks)
 
 } // namespace
 
-long double msecPerRawTimerTick;
+double msecPerRawTimerTick;
 double qpc2msec;
 
 double SecondsPerTick()
@@ -121,7 +121,7 @@ double SecondsPerTick()
 void InitTiming()
 {
     const TimerSource &source = Source();
-    msecPerRawTimerTick = static_cast<long double>(source.nanosPerTick) / 1000000.0L;
+    msecPerRawTimerTick = static_cast<double>(source.nanosPerTick) / 1000000.0;
     qpc2msec = static_cast<double>(msecPerRawTimerTick);
 }
 

@@ -650,8 +650,8 @@ void __cdecl VP_GetAngles(const vehicle_pathpos_t *vpp, float *angles)
     int i; // r31
     double v8; // fp1
     double v9; // fp31
-    long double v10; // fp2
-    long double v11; // fp2
+    double v10; // fp2
+    double v11; // fp2
     float anglesEnd[3];   // was v12 (BYREF) + v13 + v14
     float anglesStart[3]; // was v15 (BYREF) + v16 + v17
 

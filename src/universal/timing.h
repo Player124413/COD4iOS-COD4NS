@@ -4,7 +4,7 @@
 
 void InitTiming();
 
-extern long double msecPerRawTimerTick;
+extern double msecPerRawTimerTick;
 extern double qpc2msec;
 
 #ifdef __APPLE__

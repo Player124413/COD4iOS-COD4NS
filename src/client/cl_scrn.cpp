@@ -315,16 +315,16 @@ void __cdecl CL_CubemapShot_f()
     double v11; // fp31
     const char *v12; // r3
     const char *v13; // r3
-    long double v14; // fp2
+    double v14; // fp2
     const char *v15; // r3
-    long double v16; // fp2
+    double v16; // fp2
     const char *v17; // r3
-    long double v18; // fp2
+    double v18; // fp2
     const char *v19; // r3
     const char *v20; // r3
-    long double v21; // fp2
+    double v21; // fp2
     const char *v22; // r3
-    long double v23; // fp2
+    double v23; // fp2
     unsigned int displayWidth; // r11
     CubemapShot i; // r31
     DemoType DemoType; // r3

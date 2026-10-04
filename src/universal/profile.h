@@ -918,8 +918,8 @@ struct __declspec(align(8)) ProfileReadableGlobal // sizeof=0x38
 {                                       // ...
     int sequence;                       // ...
     uint32_t hits;
-    long double totalClks;
-    long double selfClks;
+    double totalClks;
+    double selfClks;
     ProfileAtom maxSelf;                // ...
     uint32_t maxHits;
     ProfileAtom min;
@@ -1440,7 +1440,7 @@ void __cdecl Profile_ResetCountersForContext(int profileContext, int system);
 const char *__cdecl Profile_MissingEnd();
 
 void __cdecl Profile_Begin(int index);
-int __cdecl Profile_EndInternal(long double *duration);
+int __cdecl Profile_EndInternal(double *duration);
 
 #define PROF_SCOPED(name) // Disable Profiling without Tracy
 #define PROFLOAD_SCOPED(name) PROF_SCOPED(name)

@@ -150,10 +150,21 @@ uint32_t __cdecl Sys_GetCurrentThreadId()
 #endif
 }
 
+#if defined(__ANDROID__)
+// ports/android/engine/android_sys.cpp. Gives each engine thread a CPU
+// affinity mask and a nice value; pthread_create leaves both unset.
+void KisakAndroid_PlaceEngineThread(int threadContext);
+#endif
+
 void __cdecl Sys_InitThread(ThreadContext_t threadContext)
 {
     //*(uint32_t*)(*((uint32_t*)NtCurrentTeb()->ThreadLocalStoragePointer + _tls_index) + 4) = g_threadValues[threadContext];
     g_threadLocals = g_threadValues[threadContext];
+#if defined(__ANDROID__)
+    // Runs on the new thread, which is what sched_setaffinity(0, ...) and
+    // setpriority(PRIO_PROCESS, gettid(), ...) both need.
+    KisakAndroid_PlaceEngineThread(threadContext);
+#endif
     Com_InitThreadData(threadContext);
     Profile_InitContext(threadContext);
 }

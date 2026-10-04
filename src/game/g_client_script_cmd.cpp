@@ -926,7 +926,7 @@ void __cdecl PlayerCmd_setAngles(scr_entref_t entref)
 {
     gentity_s *v1; // r31
     const char *v2; // r3
-    long double v3; // fp2
+    double v3; // fp2
     float v4[6]; // [sp+50h] [-30h] BYREF
     unsigned __int16 v5; // [sp+94h] [+14h]
 
@@ -3230,9 +3230,9 @@ void __cdecl PlayerCmd_BeginLocationSelection(scr_entref_t entref)
     const char *String; // r3
     int LocSelIndex; // r3
     int v5; // r30
-    long double v6; // fp2
+    double v6; // fp2
     double Float; // fp31
-    long double v8; // fp2
+    double v8; // fp2
     unsigned int v9; // r31
     unsigned __int16 v10; // [sp+A4h] [+14h]
 

@@ -836,7 +836,7 @@ void __cdecl Profile_EndScript(int profileIndex)
 #endif
 }
 
-int __cdecl Profile_EndInternal(long double *duration)
+int __cdecl Profile_EndInternal(double *duration)
 {
     // KISAKTODO: Profiler
     return 0;

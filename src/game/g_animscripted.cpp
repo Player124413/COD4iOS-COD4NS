@@ -40,7 +40,7 @@ void __cdecl CalcDeltaOriginAndAngles(
     float *origin,
     float *angles)
 {
-    long double v8; // fp4
+    double v8; // fp4
     double v9; // fp2
     double v10; // fp1
     double yaw; // fp1

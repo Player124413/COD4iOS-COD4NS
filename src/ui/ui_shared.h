@@ -677,7 +677,7 @@ struct __declspec(align(8)) token_s // sizeof=0x430
     // padding byte
     // padding byte
     // padding byte
-    long double floatvalue;             // ...
+    double floatvalue;             // ...
     char *whitespace_p;                 // ...
     char *endwhitespace_p;              // ...
     int line;                           // ...
@@ -695,7 +695,7 @@ struct __declspec(align(8)) value_s // sizeof=0x20
     // padding byte
     // padding byte
     // padding byte
-    long double floatvalue;
+    double floatvalue;
     int parentheses;
     value_s *prev;
     value_s *next;

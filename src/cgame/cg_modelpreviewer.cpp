@@ -1849,12 +1849,12 @@ void __cdecl MdlPrvModelOriginOffset(double dx, double dy, double dz)
 void __cdecl MdlPrvSpin_(unsigned int yprIdx, double deg)
 {
     double v2; // fp29
-    long double v3; // fp2
-    long double v4; // fp2
+    double v3; // fp2
+    double v4; // fp2
     double v5; // fp28
-    long double v6; // fp2
+    double v6; // fp2
     double v7; // fp31
-    long double v8; // fp2
+    double v8; // fp2
     float v9; // [sp+50h] [-D0h] BYREF
     float v10; // [sp+54h] [-CCh]
     float v11; // [sp+58h] [-C8h]
@@ -2093,7 +2093,7 @@ void __cdecl MdlPrvFreeRot(double yaw, double pitch)
     double v3; // fp30
     double v4; // fp1
     double v6; // fp31
-    long double v7; // fp2
+    double v7; // fp2
 
     v3 = (float)((float)(g_mdlprv.viewer.freeModeAngles[1] + yaw) * (float)0.0027777778);
     g_mdlprv.viewer.freeModeAngles[1] = g_mdlprv.viewer.freeModeAngles[1] + (float)yaw;
@@ -3067,8 +3067,8 @@ void __cdecl CG_ModPrvLoadModel(const cg_s *cgameGlob, const char *modelFilename
     double v47; // fp29
     double v48; // fp31
     double v49; // fp30
-    long double v50; // fp2
-    long double v51; // fp2
+    double v50; // fp2
+    double v51; // fp2
     double v52; // fp13
     int NumSurfaces; // r3
     int v54; // r30

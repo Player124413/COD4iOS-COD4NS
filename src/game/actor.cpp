@@ -622,8 +622,8 @@ void __cdecl Actor_Pain(
     int v18; // r8
     double v19; // fp1
     double v20; // fp31
-    long double v21; // fp2
-    long double v22; // fp2
+    double v21; // fp2
+    double v22; // fp2
     unsigned __int16 HitLocationString; // r3
     WeaponDef *WeaponDef; // r30
     sentient_s *sentient; // r4
@@ -726,8 +726,8 @@ void __cdecl Actor_Die(
     int v17; // r8
     double v18; // fp1
     double v19; // fp31
-    long double v20; // fp2
-    long double v21; // fp2
+    double v20; // fp2
+    double v21; // fp2
     unsigned __int16 HitLocationString; // r3
     WeaponDef *WeaponDef; // r29
 
@@ -1051,7 +1051,7 @@ bool __cdecl Actor_ShouldMoveAwayFromCloseEnt(actor_s *self)
 void __cdecl Actor_UpdateProneInformation(actor_s *self, int bDoProneCheck)
 {
     double v7; // fp31
-    long double v8; // fp2
+    double v8; // fp2
     double v9; // fp28
     double v10; // fp29
     double v11; // fp26
@@ -2118,7 +2118,7 @@ void __cdecl Path_UpdateMovementDelta(actor_s *self, double fMoveDist)
 {
     path_t *pPath; // r30
     int iHitEntnum; // r4
-    long double lookAheadLen; // fp2
+    double lookAheadLen; // fp2
     double calculatedLen; // fp12
     int moveHistoryIndex; // r29
     float vWishDir[3];

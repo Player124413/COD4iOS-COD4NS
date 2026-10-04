@@ -3,6 +3,7 @@
 #endif
 
 #include <universal/q_shared.h>
+#include <qcommon/qcommon.h> // Com_PrintWarning
 #include "cg_draw.h"
 #include <stringed/stringed_hooks.h>
 #include "cg_main.h"
@@ -940,6 +941,18 @@ void __cdecl CG_DrawPaused(int localClientNum)
 void __cdecl CG_AlterTimescale(int localClientNum, int time, double startScale, double endScale)
 {
     cg_s *cgameGlob = CG_GetLocalClientGlobals(localClientNum);
+
+    // The scales arrive from an "altertimescale" server command, i.e. from
+    // map script, so they are not trusted. Com_SetTimeScale asserts on a
+    // non-positive scale and a zero one stops game time outright, which looks
+    // exactly like a hang. Refuse the fade instead of freezing the game.
+    if (!(startScale > 0.0) || !(endScale > 0.0))
+    {
+        Com_PrintWarning(CON_CHANNEL_CLIENT,
+                         "altertimescale ignored: scales must be positive (got %g -> %g)\n",
+                         startScale, endScale);
+        return;
+    }
 
     cgameGlob->timeScaleTimeStart = Sys_Milliseconds();
     cgameGlob->timeScaleTimeEnd = cgArray[0].timeScaleTimeStart + time;

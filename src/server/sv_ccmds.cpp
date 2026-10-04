@@ -909,7 +909,7 @@ void SV_ScriptProfile_f()
 {
   int nesting; // r7
   const char *v1; // r3
-  long double v2; // fp2
+  double v2; // fp2
 
   nesting = sv_cmd_args.nesting;
   if (sv_cmd_args.nesting >= 8u)
@@ -935,7 +935,7 @@ void SV_ScriptBuiltin_f()
 {
     int nesting; // r7
     const char *v1; // r3
-    long double v2; // fp2
+    double v2; // fp2
 
     nesting = sv_cmd_args.nesting;
     if (sv_cmd_args.nesting >= 8u)

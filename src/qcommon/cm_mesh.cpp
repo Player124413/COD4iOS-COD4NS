@@ -1211,7 +1211,7 @@ bool __cdecl CM_DoesCapsuleIntersectTriangle(
     float pt[3]; // [esp+13Ch] [ebp-2Ch] BYREF
     double cutoffDistSq; // [esp+148h] [ebp-20h]
     double scaleSq; // [esp+150h] [ebp-18h]
-    long double scaledDist[2]; // [esp+158h] [ebp-10h]
+    double scaledDist[2]; // [esp+158h] [ebp-10h]
 
     v0 = cm.verts[*indices];
     v1 = cm.verts[indices[1]];

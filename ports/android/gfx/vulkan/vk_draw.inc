@@ -1532,7 +1532,10 @@ void Present(const TargetBinding &backBuffer)
         acquired = vkAcquireNextImageKHR(g.device, g.swapchain, UINT64_MAX, frame.acquired, VK_NULL_HANDLE,
                                          &imageIndex);
 
-    if (acquired == VK_ERROR_OUT_OF_DATE_KHR || acquired == VK_SUBOPTIMAL_KHR)
+    // SUBOPTIMAL is permanent once we pick a preTransform the surface does
+    // not want, so rebuilding on it rebuilt the swapchain every single frame.
+    if (acquired == VK_ERROR_OUT_OF_DATE_KHR ||
+        (acquired == VK_SUBOPTIMAL_KHR && !g.presentTransformDiffers))
     {
         // Rotation or a resize landed between frames. Finish the command
         // buffer without presenting, rebuild and pick up next frame: dropping
@@ -1673,7 +1676,8 @@ void Present(const TargetBinding &backBuffer)
     g_frameOpen = false;
     g.frameIndex = (g.frameIndex + 1) % kFramesInFlight;
 
-    if (presented == VK_ERROR_OUT_OF_DATE_KHR || presented == VK_SUBOPTIMAL_KHR)
+    if (presented == VK_ERROR_OUT_OF_DATE_KHR ||
+        (presented == VK_SUBOPTIMAL_KHR && !g.presentTransformDiffers))
     {
         vkDeviceWaitIdle(g.device);
         CreateSwapchain(g.swapchainExtent.width, g.swapchainExtent.height);

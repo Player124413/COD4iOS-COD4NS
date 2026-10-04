@@ -429,11 +429,11 @@ int __cdecl G_WorldDirToScreenPos(
     const float *worldDir,
     float *outScreenPos)
 {
-    long double v9; // fp2
+    double v9; // fp2
     int result; // r3
     double v11; // fp28
     double v12; // fp27
-    long double v13; // fp2
+    double v13; // fp2
     double v14; // fp31
     double v15; // fp30
     float v16[4]; // [sp+50h] [-90h] BYREF

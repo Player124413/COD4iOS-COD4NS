@@ -67,6 +67,11 @@ struct Backend
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkFormat swapchainFormat = VK_FORMAT_UNDEFINED;
     VkExtent2D swapchainExtent{};
+    // True when the swapchain was deliberately created with a preTransform
+    // that differs from the surface's currentTransform. The driver then
+    // reports VK_SUBOPTIMAL_KHR on every acquire and present, for ever, and
+    // that report must not be read as "rebuild me".
+    bool presentTransformDiffers = false;
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainViews;
     uint32_t swapchainIndex = 0;
@@ -789,9 +794,16 @@ bool CreateSwapchain(uint32_t width, uint32_t height)
     const bool canSkipRotation =
         (capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) != 0;
     info.preTransform = canSkipRotation ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : capabilities.currentTransform;
-    if (capabilities.currentTransform != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-        LOGI("surface wants transform 0x%X; presenting with 0x%X",
+    // Deliberately disagreeing with the surface has a consequence: every
+    // acquire and present from here on returns VK_SUBOPTIMAL_KHR, because
+    // that is exactly what suboptimal means. Nothing can clear it, so the
+    // present path must stop reading it as a rebuild request.
+    const bool transformDiffers = info.preTransform != capabilities.currentTransform;
+    if (transformDiffers && !g.presentTransformDiffers)
+        LOGI("surface wants transform 0x%X; presenting with 0x%X, so every frame "
+             "reports SUBOPTIMAL from here on and that is expected",
              static_cast<unsigned>(capabilities.currentTransform), static_cast<unsigned>(info.preTransform));
+    g.presentTransformDiffers = transformDiffers;
     info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     info.presentMode = presentMode;
     info.clipped = VK_TRUE;

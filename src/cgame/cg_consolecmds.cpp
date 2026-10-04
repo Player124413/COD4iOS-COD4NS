@@ -99,8 +99,8 @@ void CG_ShellShock_f()
     int v0; // r3
     const char *v1; // r3
     const char *v2; // r3
-    long double v3; // fp2
-    long double v4; // fp2
+    double v3; // fp2
+    double v4; // fp2
     shellshock_parms_t *ShellshockParms; // r3
     int v6; // [sp+50h] [-20h]
 
@@ -179,7 +179,7 @@ void CG_ModelPreviewerStepAnim_f()
 {
     int v0; // r3
     const char *v1; // r3
-    long double v2; // fp2
+    double v2; // fp2
 
     if (cgArray[0].nextSnap)
     {
@@ -300,13 +300,13 @@ void __cdecl CG_SetViewPos_f()
     int v0; // r30
     float *origin; // r31
     const char *v2; // r3
-    long double v3; // fp2
+    double v3; // fp2
     unsigned int nesting; // r7
     const char *v5; // r3
-    long double v6; // fp2
+    double v6; // fp2
     int v7; // r7
     const char *v8; // r3
-    long double v9; // fp2
+    double v9; // fp2
     float v10[20]; // [sp+50h] [-50h] BYREF
 
     if (cgArray[0].nextSnap)
@@ -422,7 +422,7 @@ void __cdecl CG_SetViewOrbit_f()
     float focusZ; // fp29
     float dist; // fp28
     float degUp; // fp27
-    long double degAround; // fp2
+    double degAround; // fp2
     float len; // fp11
     float vec[3]; // [sp+50h] [-70h] BYREF // v30
     float pos[4]; // [sp+60h] [-60h] BYREF

@@ -1822,8 +1822,8 @@ void __cdecl ActorCmd_GetMotionAngle(scr_entref_t entref)
     actor_s *v1; // r31
     double v2; // fp1
     double v3; // fp31
-    long double v4; // fp2
-    long double v5; // fp2
+    double v4; // fp2
+    double v5; // fp2
     double v6; // fp1
     double v7; // fp1
 

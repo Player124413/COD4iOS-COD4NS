@@ -2612,7 +2612,7 @@ void __cdecl G_EntUnlink(gentity_s *ent)
     tagInfo_s *tagInfo; // r22
     animscripted_s *scripted; // r30
     float *anglesError; // r30
-    long double v5; // fp2
+    double v5; // fp2
     gclient_s *client; // r11
     gentity_s *parent; // r24
     gentity_s *tagChildren; // r30

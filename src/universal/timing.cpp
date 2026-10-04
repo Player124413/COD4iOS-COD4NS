@@ -4,7 +4,7 @@
 #include <windows.h>
 #include <qcommon/threads.h>
 
-long double msecPerRawTimerTick;
+double msecPerRawTimerTick;
 double qpc2msec;
 
 double __cdecl SecondsPerTick()

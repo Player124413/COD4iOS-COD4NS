@@ -55,7 +55,7 @@ void __cdecl CG_DrawObjectiveHeader(
     ScreenPlacement *place; // r30
     double x0; // fp31
     double width; // fp29
-    long double v26; // fp2
+    double v26; // fp2
     double height; // fp30
     double v31; // fp1
 
@@ -190,7 +190,7 @@ void __cdecl CG_DrawObjectiveList(
     const float *v14; // r6
     int lineCharCount; // r5
     int v16; // r4
-    long double v17; // fp2
+    double v17; // fp2
     double h; // fp0
     double v19; // fp28
     double v20; // fp25
@@ -210,7 +210,7 @@ void __cdecl CG_DrawObjectiveList(
     double v37; // fp4
     const char *wordwrapNext; // r29
     double height; // fp30
-    long double v40; // fp2
+    double v40; // fp2
     double w; // fp0
     __int64 v43; // r11
     double width; // fp31

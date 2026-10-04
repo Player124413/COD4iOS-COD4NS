@@ -286,8 +286,8 @@ int __cdecl Actor_Grenade_GetTossPositionsFromHints(
     const unsigned int method,
     float *vLand)
 {
-    long double v7; // fp2
-    long double v8; // fp2
+    double v7; // fp2
+    double v8; // fp2
     double v9; // fp29
     int v10; // r26
     unsigned int v11; // r30
