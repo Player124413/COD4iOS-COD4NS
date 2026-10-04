@@ -779,6 +779,93 @@ def check_apple_gated_shared_calls() -> list[str]:
     return problems
 
 
+# Every "#ifdef __APPLE__" in src/ is a fork where iOS takes the ported path
+# and Android silently keeps the original 32-bit Windows one. That asymmetry
+# caused the zone-loader crash, the dead controller look input and the sound
+# crash, so the default is now the opposite: shared code is expected to say
+# "defined(__APPLE__) || defined(__ANDROID__)".
+#
+# What is left below is the set of guards that must stay Apple-only, with the
+# reason and the number of guard lines in that file. Adding a new Apple-only
+# guard without a reason fails this check. Lowering a count is progress; just
+# update the number in the same commit.
+APPLE_ONLY_POLICY = {
+    # Bound to an Apple framework. Android needs its own implementation, not
+    # the same code.
+    "src/qcommon/dl_main.cpp": (4, "NSURLSession download client (apple_download.mm); Android needs its own HTTP client"),
+    "src/game/savedevice_pc.cpp": (2, "iOS NativeSaveFile; Android needs an equivalent save backend"),
+    "src/client/screen_placement.cpp": (2, "KisakApple_GetDisplaySafeArea lives in apple_sys.cpp, which Android does not compile"),
+    "src/universal/assertive.cpp": (2, "<execinfo.h>; bionic has no backtrace API, Android uses KisakAndroid_LogBacktrace"),
+    "src/qcommon/common.cpp": (2, "<execinfo.h>, same as assertive.cpp"),
+    "src/universal/timing.h": (1, "mach_absolute_time tick calibration"),
+    "src/universal/q_shared.h": (1, "Apple CPUSTRING/MAC_STATIC block"),
+    "src/universal/memfile.cpp": (1, "zlib header spelling; Android uses the vendored <zlib/zlib.h>"),
+    "src/client/cl_main.cpp": (2, "apple_engine_mode.h and the dylib-based mode switch; Android has its own branch"),
+
+    # Diagnostics that only ever ran on an Apple device. Harmless to leave off;
+    # Android has its own logging.
+    "src/gfx_d3d/r_image.cpp": (3, "iPhone texture-memory budget and Apple-only texture corruption diagnostics"),
+    "src/gfx_d3d/r_rendercmds.cpp": (2, "Apple-only text corruption diagnostics"),
+    "src/gfx_d3d/r_image_load_obj.cpp": (1, "Apple-only texture corruption diagnostics"),
+    "src/script/scr_parser.cpp": (1, "KISAK_DUMP_SCRIPT local debugging aid"),
+    "src/game/g_scr_main.cpp": (9, "Apple-side script debug counters and level-transition traces"),
+    "src/game/actor.cpp": (2, "Apple-side AI debug counters"),
+    "src/game/actor_animapi.cpp": (1, "Apple-side animation debug counter"),
+    "src/game/g_utils.cpp": (1, "Apple-side DObj debug counter"),
+    "src/game/g_main.cpp": (1, "Apple-side script registration counter"),
+    "src/game/g_scr_vehicle.cpp": (2, "Apple-side vehicle script diagnostics"),
+    "src/script/scr_vm.cpp": (2, "Apple-side VM diagnostics"),
+
+    # Tuned to iPhone screen geometry. Enabling ui_atoms.cpp on Android
+    # collapsed the whole main menu, so these stay off until each one is
+    # validated against a phone.
+    "src/ui/ui_atoms.cpp": (2, "iPhone canvas reshaping; blanked the Android menu when enabled"),
+    "src/ui/ui_main.cpp": (1, "same canvas family as ui_atoms.cpp"),
+
+    # Multiplayer. The Android MP path is not validated yet; revisit together.
+    "src/client_mp/cl_main_mp.cpp": (9, "CoD4X multiplayer client; Android MP not validated yet"),
+    "src/client_mp/cl_cod4x.cpp": (4, "CoD4X multiplayer client; Android MP not validated yet"),
+    "src/client_mp/cl_main_pc_mp.cpp": (1, "CoD4X server browser refresh; Android MP not validated yet"),
+}
+
+
+def check_apple_only_policy() -> list[str]:
+    """Check 10: no unclassified Apple-only guard may exist in shared code."""
+    found: dict[str, int] = {}
+    for root, dirs, files in os.walk("src"):
+        dirs[:] = [d for d in dirs
+                   if os.path.join(root, d).replace("\\", "/") not in ENGINE_SKIP_DIRS]
+        if root.replace("\\", "/") in ENGINE_SKIP_DIRS:
+            continue
+        for name in sorted(files):
+            if not name.endswith((".cpp", ".h")):
+                continue
+            path = os.path.join(root, name).replace("\\", "/")
+            text = open(path, encoding="utf-8", errors="replace").read()
+            count = sum(1 for line in text.splitlines()
+                        if "__APPLE__" in line and "__ANDROID__" not in line)
+            if count:
+                found[path] = count
+
+    problems: list[str] = []
+    for name, count in sorted(found.items()):
+        if name not in APPLE_ONLY_POLICY:
+            problems.append(
+                f"{name}: {count} Apple-only guard(s) with no entry in APPLE_ONLY_POLICY. "
+                f"Extend them with '#if defined(__APPLE__) || defined(__ANDROID__)', "
+                f"or record why Android must not take that path."
+            )
+        elif APPLE_ONLY_POLICY[name][0] != count:
+            problems.append(
+                f"{name}: {count} Apple-only guard(s), policy says "
+                f"{APPLE_ONLY_POLICY[name][0]}; update the count."
+            )
+    for name in sorted(APPLE_ONLY_POLICY):
+        if name not in found:
+            problems.append(f"{name}: in APPLE_ONLY_POLICY but has no Apple-only guards left; drop the entry.")
+    return problems
+
+
 def main() -> int:
     failed = False
 
@@ -816,6 +903,7 @@ def main() -> int:
         ("Apple-only definitions", check_apple_only_definitions),
         ("Apple-gated shared calls", check_apple_gated_shared_calls),
         ("Backup rules", check_backup_rules),
+        ("Apple-only guard policy", check_apple_only_policy),
     ):
         problems = check()
         if problems:

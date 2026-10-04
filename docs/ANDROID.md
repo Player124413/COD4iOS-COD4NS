@@ -373,6 +373,33 @@ is where it is handled.
 
 ---
 
+## Following the iOS port
+
+The engine in `src/` is shared. Android reuses the iOS port wholesale where
+the code is portable: the whole 64-bit zone loader, the controller model,
+the cutscene glue, the Direct3D 9 shim and the CoD4X transport are compiled
+straight out of `ports/ios`. What `ports/android` adds is only what the
+platform forces: a Vulkan backend in place of Metal, a Kotlin/JNI shell in
+place of UIKit, MediaCodec in place of AVFoundation, and the performance
+director.
+
+The dangerous part is the shared engine. Every `#ifdef __APPLE__` in `src/`
+is a fork where iOS takes the ported path and Android silently keeps the
+original 32-bit Windows one, and nothing fails at build time. That is what
+caused the zone-loader crash, the dead controller look input and the loaded
+sound crash.
+
+So the default is inverted: shared code should say
+`#if defined(__APPLE__) || defined(__ANDROID__)`. Anything that must stay
+Apple-only is listed in `APPLE_ONLY_POLICY` in
+`tools/check-android-sources.py` with a reason and a count, and a new
+unclassified guard fails CI.
+
+Not every guard is safe to flip. The iPhone canvas reshaping in
+`src/ui/ui_atoms.cpp` collapsed the entire Android main menu when it was
+enabled, so anything tuned to a specific screen has to be validated on a
+device before it is shared.
+
 ## Logs and crashes
 
 The engine writes a plain text log to internal storage:
