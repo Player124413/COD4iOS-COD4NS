@@ -759,7 +759,25 @@ bool CreateSwapchain(uint32_t width, uint32_t height)
     // dynamic-resolution render target is a blit, not a draw.
     info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    info.preTransform = capabilities.currentTransform;
+    // Phone panels are natively portrait, so a landscape game is handed
+    // currentTransform = ROTATE_90. Passing that value back is a promise to
+    // the driver that the application has already rotated its own output to
+    // the panel's orientation. This port has not: it renders landscape
+    // content with a landscape projection, so the promise was false and the
+    // compositor presented the whole frame turned on its side - vertical
+    // text, a stretched background, and thin vertical widgets lying flat.
+    //
+    // Ask for identity and let the display pipeline apply the rotation. It
+    // is the composition the hardware performs for every other application
+    // anyway. Rotating inside the projection would save that pass, but it
+    // has to be threaded through the viewport, the scissor and the blit, and
+    // correctness comes first.
+    const bool canSkipRotation =
+        (capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) != 0;
+    info.preTransform = canSkipRotation ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : capabilities.currentTransform;
+    if (capabilities.currentTransform != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+        LOGI("surface wants transform 0x%X; presenting with 0x%X",
+             static_cast<unsigned>(capabilities.currentTransform), static_cast<unsigned>(info.preTransform));
     info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     info.presentMode = presentMode;
     info.clipped = VK_TRUE;
