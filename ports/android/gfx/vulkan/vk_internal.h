@@ -19,6 +19,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <cstddef>
 #include <vector>
 
 namespace kisak::vk {
@@ -39,6 +40,13 @@ inline constexpr uint32_t kFramesInFlight = 2;
 // more than a menu one, and running dry costs every draw after that point, so
 // the headroom is worth more than the megabytes on any device this port
 // targets. "ring peak" in the per-frame log says how much is really used.
+// Sets per descriptor pool in a frame's chain. Pools are added on demand, so
+// this trades a little slack against how often a heavy frame has to allocate.
+inline constexpr uint32_t kDescriptorSetsPerPool = 1024;
+// Hard stop on the chain: 64Ki sets in one frame is far past anything the
+// engine draws, so reaching it means something is wrong, not busy.
+inline constexpr std::size_t kMaxDescriptorPools = 64;
+
 inline constexpr VkDeviceSize kUploadRingBytes = 16 * 1024 * 1024;
 
 struct MemoryBlock
@@ -160,7 +168,13 @@ struct FrameContext
     VkFence fence = VK_NULL_HANDLE;
     VkSemaphore acquired = VK_NULL_HANDLE;
     VkSemaphore rendered = VK_NULL_HANDLE;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    // A chain, not a single pool. Every set in the layout costs 2 dynamic
+    // uniform buffers and kMaxSamplers combined image samplers whether or not
+    // a draw uses them all, so a pool runs out of sampler descriptors long
+    // before it runs out of sets. When one fills, another is appended rather
+    // than letting the frame degrade.
+    std::vector<VkDescriptorPool> descriptorPools;
+    std::size_t descriptorPoolIndex = 0;
 
     // Upload ring.
     VkBuffer uploadBuffer = VK_NULL_HANDLE;

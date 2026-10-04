@@ -532,6 +532,31 @@ bool CreateDevice()
     return true;
 }
 
+// Appends one descriptor pool to a frame's chain. The sizes are derived from
+// what a single set in g.descriptorLayout actually costs, so the pool cannot
+// run out of one descriptor type while still reporting free sets - which is
+// what the old hand-picked numbers did: 16384 samplers at kMaxSamplers per
+// set capped the pool at 819 sets while it advertised 4096.
+bool AddDescriptorPool(FrameContext &frame)
+{
+    VkDescriptorPoolSize sizes[2]{};
+    sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    sizes[0].descriptorCount = kDescriptorSetsPerPool * 2;
+    sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    sizes[1].descriptorCount = kDescriptorSetsPerPool * kMaxSamplers;
+
+    VkDescriptorPoolCreateInfo info{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    info.maxSets = kDescriptorSetsPerPool;
+    info.poolSizeCount = 2;
+    info.pPoolSizes = sizes;
+
+    VkDescriptorPool pool = VK_NULL_HANDLE;
+    if (!Check(vkCreateDescriptorPool(g.device, &info, nullptr, &pool), "vkCreateDescriptorPool"))
+        return false;
+    frame.descriptorPools.push_back(pool);
+    return true;
+}
+
 bool CreateFrameContexts()
 {
     for (uint32_t i = 0; i < kFramesInFlight; ++i)
@@ -564,18 +589,7 @@ bool CreateFrameContexts()
             !Check(vkCreateSemaphore(g.device, &semaphoreInfo, nullptr, &frame.rendered), "vkCreateSemaphore"))
             return false;
 
-        VkDescriptorPoolSize sizes[2]{};
-        sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        sizes[0].descriptorCount = 4096;
-        sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        sizes[1].descriptorCount = 16384;
-
-        VkDescriptorPoolCreateInfo descriptorInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-        descriptorInfo.maxSets = 4096;
-        descriptorInfo.poolSizeCount = 2;
-        descriptorInfo.pPoolSizes = sizes;
-        if (!Check(vkCreateDescriptorPool(g.device, &descriptorInfo, nullptr, &frame.descriptorPool),
-                   "vkCreateDescriptorPool"))
+        if (!AddDescriptorPool(frame))
             return false;
 
         VkBufferCreateInfo uploadInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -983,8 +997,10 @@ void Shutdown()
         if (frame.uploadBuffer)
             vkDestroyBuffer(g.device, frame.uploadBuffer, nullptr);
         FreeMemory(frame.uploadMemory);
-        if (frame.descriptorPool)
-            vkDestroyDescriptorPool(g.device, frame.descriptorPool, nullptr);
+        for (VkDescriptorPool pool : frame.descriptorPools)
+            vkDestroyDescriptorPool(g.device, pool, nullptr);
+        frame.descriptorPools.clear();
+        frame.descriptorPoolIndex = 0;
         if (frame.acquired)
             vkDestroySemaphore(g.device, frame.acquired, nullptr);
         if (frame.rendered)

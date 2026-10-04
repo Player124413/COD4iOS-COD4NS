@@ -738,18 +738,41 @@ VkDescriptorSet BuildDescriptorSet(const DrawState &state, uint32_t vertexConsta
 
     FrameContext &frame = Frame();
     VkDescriptorSetAllocateInfo allocate{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-    allocate.descriptorPool = frame.descriptorPool;
     allocate.descriptorSetCount = 1;
     allocate.pSetLayouts = &g.descriptorLayout;
 
+    // Take the first pool in the chain that still has room, appending one if
+    // the frame has outgrown every pool so far. A full pool only ever reports
+    // OUT_OF_POOL_MEMORY or FRAGMENTED_POOL, both of which mean "try another
+    // pool", so there is nothing to recover beyond moving on.
     VkDescriptorSet set = VK_NULL_HANDLE;
-    if (vkAllocateDescriptorSets(g.device, &allocate, &set) != VK_SUCCESS)
+    while (true)
     {
-        // The pool is sized for a heavy frame; running out means this frame is
-        // heavier still. Reusing the previous set keeps the frame rendering
-        // with slightly wrong textures rather than dropping it entirely.
-        LOGE("descriptor pool exhausted this frame");
-        return g_bound.descriptorSet;
+        if (frame.descriptorPoolIndex >= frame.descriptorPools.size())
+        {
+            // A fresh pool that cannot satisfy a single set would loop here
+            // forever, so stop rather than hang the render thread.
+            if (frame.descriptorPools.size() >= kMaxDescriptorPools || !AddDescriptorPool(frame))
+            {
+                LOGE("out of descriptor pools: could not create pool %zu",
+                     frame.descriptorPools.size() + 1);
+                ++g_drawStats.noDescriptor;
+                return g_bound.descriptorSet;
+            }
+            LOGI("frame %u: descriptor pool %zu added (%u sets each)", g_drawStatsFrame,
+                 frame.descriptorPools.size(), kDescriptorSetsPerPool);
+        }
+        allocate.descriptorPool = frame.descriptorPools[frame.descriptorPoolIndex];
+        const VkResult result = vkAllocateDescriptorSets(g.device, &allocate, &set);
+        if (result == VK_SUCCESS)
+            break;
+        if (result != VK_ERROR_OUT_OF_POOL_MEMORY && result != VK_ERROR_FRAGMENTED_POOL)
+        {
+            LOGE("vkAllocateDescriptorSets failed (%d)", static_cast<int>(result));
+            ++g_drawStats.noDescriptor;
+            return g_bound.descriptorSet;
+        }
+        ++frame.descriptorPoolIndex;
     }
 
     std::vector<VkWriteDescriptorSet> writes;
@@ -906,7 +929,9 @@ void EnsureFrameOpen()
     vkResetCommandPool(g.device, frame.commandPool, 0);
     frame.uploadOffset = 0;
 
-    vkResetDescriptorPool(g.device, frame.descriptorPool, 0);
+    for (VkDescriptorPool pool : frame.descriptorPools)
+        vkResetDescriptorPool(g.device, pool, 0);
+    frame.descriptorPoolIndex = 0;
 
     VkCommandBufferBeginInfo begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;

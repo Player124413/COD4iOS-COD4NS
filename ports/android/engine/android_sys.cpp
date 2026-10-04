@@ -77,6 +77,8 @@ std::atomic<void *> g_nativeWindow{nullptr};
 std::atomic<int> g_windowWidth{0};
 std::atomic<int> g_windowHeight{0};
 std::atomic<int> g_softKeyboardVisible{0};
+// Bumped once per engine frame; the stall watchdog watches it stop.
+std::atomic<uint64_t> g_engineHeartbeat{0};
 float g_safeAreaHorizontal = 0.0f;
 float g_safeAreaVertical = 0.0f;
 
@@ -835,6 +837,10 @@ int KisakAndroid_RunEngine(const char *commandLine)
     int64_t vsyncNs = nowNs();
     for (;;)
     {
+        // The watchdog reads this to tell "busy" from "wedged". Relaxed is
+        // enough: it only ever moves forward and a late read costs a second.
+        g_engineHeartbeat.fetch_add(1, std::memory_order_relaxed);
+
         if (!g_foreground.load(std::memory_order_acquire))
         {
             // Backgrounded: keep simulating slowly so a multiplayer
@@ -914,6 +920,50 @@ void *EngineThreadMain(void *)
     return nullptr;
 }
 
+// A stall is the one failure that leaves nothing in the log: no crash, no
+// error, just a frozen picture and an eventual ANR. _Unwind_Backtrace only
+// walks the calling thread, so the watchdog cannot inspect the engine from
+// outside; it signals the engine thread and the handler unwinds in place.
+// Everything the handler touches is async-signal-safe: the log layer writes
+// with a raw write() to an O_APPEND fd for exactly this reason.
+void EngineStallHandler(int)
+{
+    KisakAndroid_LogPrintf("\n==== ENGINE STALLED ====\n");
+    KisakAndroid_LogBacktrace();
+    KisakAndroid_LogPrintf("==== END STALL ====\n");
+    KisakAndroid_LogFlush();
+}
+
+void *WatchdogThreadMain(void *)
+{
+    static constexpr int kStallSeconds = 10;
+    uint64_t last = 0;
+    int stalledFor = 0;
+    bool reported = false;
+    for (;;)
+    {
+        sleep(1);
+        const uint64_t now = g_engineHeartbeat.load(std::memory_order_relaxed);
+        if (now != last)
+        {
+            if (reported)
+                KisakAndroid_LogPrintf("engine recovered after %d s\n", stalledFor);
+            last = now;
+            stalledFor = 0;
+            reported = false;
+            continue;
+        }
+        // A backgrounded engine deliberately runs at 10 Hz but still ticks, so
+        // a frozen heartbeat always means the frame itself is stuck.
+        if (++stalledFor < kStallSeconds || reported)
+            continue;
+        reported = true;
+        KisakAndroid_LogPrintf("engine thread has not finished a frame in %d s\n", stalledFor);
+        pthread_kill(g_engineThread, SIGPROF);
+    }
+    return nullptr;
+}
+
 } // namespace
 
 bool KisakAndroid_StartEngine(const char *commandLine)
@@ -942,5 +992,22 @@ bool KisakAndroid_StartEngine(const char *commandLine)
         g_engineStarted.store(false);
         return false;
     }
+
+    // SIGPROF is unused by the engine and not one the platform delivers on its
+    // own, so it is free to repurpose as "dump where you are".
+    struct sigaction action = {};
+    action.sa_handler = &EngineStallHandler;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = SA_RESTART;
+    sigaction(SIGPROF, &action, nullptr);
+
+    pthread_attr_t watchdogAttributes;
+    pthread_attr_init(&watchdogAttributes);
+    pthread_attr_setdetachstate(&watchdogAttributes, PTHREAD_CREATE_DETACHED);
+    pthread_t watchdog{};
+    if (pthread_create(&watchdog, &watchdogAttributes, WatchdogThreadMain, nullptr) != 0)
+        KisakAndroid_LogPrintf("could not start the stall watchdog\n");
+    pthread_attr_destroy(&watchdogAttributes);
+
     return true;
 }
